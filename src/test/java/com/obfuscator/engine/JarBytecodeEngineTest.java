@@ -20,6 +20,120 @@ import java.util.zip.ZipEntry;
 public class JarBytecodeEngineTest {
 
     @Test
+    public void testInvokeVirtualObfuscationWithArgs() throws Exception {
+        File tempInputJar = File.createTempFile("test-input-invoke-args", ".jar");
+        tempInputJar.deleteOnExit();
+
+        File tempOutputJar = File.createTempFile("test-output-invoke-args", ".jar");
+        tempOutputJar.deleteOnExit();
+
+        String testClassName = "InvokeArgsTestClass";
+        String testSource = "public class InvokeArgsTestClass {\n" +
+                            "    public String callTarget() {\n" +
+                            "        String target = \"Secret\";\n" +
+                            "        return target.substring(1, 4);\n" +
+                            "    }\n" +
+                            "}";
+
+        InMemoryCompiler compiler = new InMemoryCompiler();
+        compiler.compile(testClassName, testSource);
+        byte[] testClassBytes = compiler.getCompiledClasses().get(testClassName);
+
+        try (JarOutputStream jos = new JarOutputStream(new FileOutputStream(tempInputJar))) {
+            jos.putNextEntry(new JarEntry(testClassName + ".class"));
+            jos.write(testClassBytes);
+            jos.closeEntry();
+        }
+
+        JarBytecodeEngine engine = new JarBytecodeEngine();
+        engine.process(tempInputJar, tempOutputJar);
+
+        URL[] urls = {tempOutputJar.toURI().toURL()};
+        try (URLClassLoader cl = new URLClassLoader(urls)) {
+            Class<?> clazz = cl.loadClass(testClassName);
+            Object instance = clazz.getDeclaredConstructor().newInstance();
+            String result = (String) clazz.getMethod("callTarget").invoke(instance);
+            assertEquals("ecr", result);
+        }
+    }
+
+    @Test
+    public void testFieldReadWriteObfuscation() throws Exception {
+        File tempInputJar = File.createTempFile("test-input-field", ".jar");
+        tempInputJar.deleteOnExit();
+
+        File tempOutputJar = File.createTempFile("test-output-field", ".jar");
+        tempOutputJar.deleteOnExit();
+
+        String testClassName = "FieldTestClass";
+        String testSource = "public class FieldTestClass {\n" +
+                            "    public int myField = 10;\n" +
+                            "    public int testField() {\n" +
+                            "        myField = 42;\n" +
+                            "        return myField;\n" +
+                            "    }\n" +
+                            "}";
+
+        InMemoryCompiler compiler = new InMemoryCompiler();
+        compiler.compile(testClassName, testSource);
+        byte[] testClassBytes = compiler.getCompiledClasses().get(testClassName);
+
+        try (JarOutputStream jos = new JarOutputStream(new FileOutputStream(tempInputJar))) {
+            jos.putNextEntry(new JarEntry(testClassName + ".class"));
+            jos.write(testClassBytes);
+            jos.closeEntry();
+        }
+
+        JarBytecodeEngine engine = new JarBytecodeEngine();
+        engine.process(tempInputJar, tempOutputJar);
+
+        URL[] urls = {tempOutputJar.toURI().toURL()};
+        try (URLClassLoader cl = new URLClassLoader(urls)) {
+            Class<?> clazz = cl.loadClass(testClassName);
+            Object instance = clazz.getDeclaredConstructor().newInstance();
+            int result = (int) clazz.getMethod("testField").invoke(instance);
+            assertEquals(42, result);
+        }
+    }
+
+    @Test
+    public void testNewInstructionObfuscation() throws Exception {
+        File tempInputJar = File.createTempFile("test-input-new", ".jar");
+        tempInputJar.deleteOnExit();
+
+        File tempOutputJar = File.createTempFile("test-output-new", ".jar");
+        tempOutputJar.deleteOnExit();
+
+        String testClassName = "NewTestClass";
+        String testSource = "public class NewTestClass {\n" +
+                            "    public String testNew() {\n" +
+                            "        return new String(\"HelloProxy\");\n" +
+                            "    }\n" +
+                            "}";
+
+        InMemoryCompiler compiler = new InMemoryCompiler();
+        compiler.compile(testClassName, testSource);
+        byte[] testClassBytes = compiler.getCompiledClasses().get(testClassName);
+
+        try (JarOutputStream jos = new JarOutputStream(new FileOutputStream(tempInputJar))) {
+            jos.putNextEntry(new JarEntry(testClassName + ".class"));
+            jos.write(testClassBytes);
+            jos.closeEntry();
+        }
+
+        JarBytecodeEngine engine = new JarBytecodeEngine();
+        engine.process(tempInputJar, tempOutputJar);
+
+        URL[] urls = {tempOutputJar.toURI().toURL()};
+        try (URLClassLoader cl = new URLClassLoader(urls)) {
+            Class<?> clazz = cl.loadClass(testClassName);
+            Object instance = clazz.getDeclaredConstructor().newInstance();
+            String result = (String) clazz.getMethod("testNew").invoke(instance);
+            assertEquals("HelloProxy", result);
+        }
+    }
+
+    @Test
     public void testMethodCallObfuscationInJar() throws Exception {
         // 1. Compile a simple test class with a method call and put it into a JAR
         File tempInputJar = File.createTempFile("test-input-method", ".jar");
