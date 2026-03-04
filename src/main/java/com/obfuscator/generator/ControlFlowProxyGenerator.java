@@ -12,13 +12,37 @@ public class ControlFlowProxyGenerator implements ProxyGenerator {
 
     @Override
     public Object generate(String id, Object data) {
+        if (!(data instanceof String)) {
+            throw new IllegalArgumentException("Data must be a string containing the prefix (IF, FOR, WHILE)");
+        }
+
         String prefix = (String) data; // e.g. "IF" or "FOR" or "WHILE"
         String className = prefix + id;
 
-        // TODO: Extract condition and block logic into a distinct static class `[PREFIX][id]`.
-        // The calling class just invokes a method like `IF5001.eval(args...)`.
+        StringBuilder sb = new StringBuilder();
+        sb.append("public class ").append(className).append(" {\n");
+        sb.append("    public static boolean eval(String op, int a, int b) {\n");
+        sb.append("        switch (op) {\n");
+        sb.append("            case \"==\": return a == b;\n");
+        sb.append("            case \"!=\": return a != b;\n");
+        sb.append("            case \"<\": return a < b;\n");
+        sb.append("            case \">\": return a > b;\n");
+        sb.append("            case \"<=\": return a <= b;\n");
+        sb.append("            case \">=\": return a >= b;\n");
+        sb.append("            default: throw new IllegalArgumentException(\"Unknown operator: \" + op);\n");
+        sb.append("        }\n");
+        sb.append("    }\n");
+
+        sb.append("    public static boolean eval(String op, Object a, Object b) {\n");
+        sb.append("        switch (op) {\n");
+        sb.append("            case \"==\": return a == b;\n");
+        sb.append("            case \"!=\": return a != b;\n");
+        sb.append("            default: throw new IllegalArgumentException(\"Unknown operator: \" + op);\n");
+        sb.append("        }\n");
+        sb.append("    }\n");
+        sb.append("}\n");
 
         System.out.println("Generating Control Flow Proxy: " + className);
-        return null;
+        return sb.toString();
     }
 }
