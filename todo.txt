@@ -26,9 +26,12 @@
 
 ## 3. 不同文件格式的解析与处理实现
 - [ ] 实现对 .jar 文件的解析与混淆重写 (字节码层面 ASM)
+  - [ ] 实现 InMemoryCompiler，使用 javax.tools.JavaCompiler 动态编译代理类生成的 Java 源码
+  - [ ] 实现 ProxyManager，统筹代理类的生成、记录和名字生成，保证混淆代理类只生成一次
   - [ ] 使用 ASM 实现基本的 ClassReader 和 ClassWriter 框架，读写 JAR 中的 .class 文件
-  - [ ] 编写 ClassVisitor 重写常量池、方法指令，提取并生成对应的代理类的字节码
-  - [ ] 将原始逻辑替换为对新生成的动态命名代理类的调用
+  - [ ] 编写 ClassVisitor 和 MethodVisitor 拦截常量池、方法指令（当前重点支持 LDC 字符串拦截）
+  - [ ] 将原始逻辑替换为对新生成的动态命名代理类的调用（如静态方法 `get()`）
+  - [ ] 将 InMemoryCompiler 编译生成的代理类 .class 文件注入到输出 JAR 包中
 - [ ] 实现对 .dex 文件的解析与混淆重写 (Dexlib2/Smali)
   - [ ] 使用 Dexlib2 实现基础的 DEX 文件读取和写入骨架
   - [ ] 解析 Dex 文件结构，注入动态命名的代理类
@@ -47,5 +50,6 @@
   - [x] 为 StringProxyGenerator 编写单元测试
   - [x] 为 ClassCreationProxyGenerator 编写单元测试
   - [x] 为 MethodProxyGenerator / FieldProxyGenerator 编写单元测试
+  - [ ] 为 JarBytecodeEngine / ObfuscationClassVisitor 编写单元测试
 - [ ] 针对真实复杂应用 (Spring Boot, Android App) 进行混淆与反编译效果评估
   - [ ] 测试被混淆的应用的反编译抗性与运行时性能损耗
