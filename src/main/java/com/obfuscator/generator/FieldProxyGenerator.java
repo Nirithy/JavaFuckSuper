@@ -13,12 +13,31 @@ public class FieldProxyGenerator implements ProxyGenerator {
     @Override
     public Object generate(String id, Object data) {
         String className = "F" + id;
-        // data could be a representation of Field Name and Type
 
-        // TODO: Generate a class named `F[id]` with static `get` and `set` methods
-        // to access the field via reflection.
+        if (!(data instanceof FieldData)) {
+            throw new IllegalArgumentException("Data must be an instance of FieldData");
+        }
 
-        System.out.println("Generating Field Access Proxy: " + className);
-        return null;
+        FieldData fieldData = (FieldData) data;
+
+        StringBuilder sb = new StringBuilder();
+        sb.append("public class ").append(className).append(" {\n");
+        sb.append("    public static Object get(Object target) throws Exception {\n");
+        sb.append("        Class<?> clazz = Class.forName(\"").append(fieldData.getClassName()).append("\");\n");
+        sb.append("        java.lang.reflect.Field field = clazz.getDeclaredField(\"").append(fieldData.getFieldName()).append("\");\n");
+        sb.append("        field.setAccessible(true);\n");
+        sb.append("        return field.get(target);\n");
+        sb.append("    }\n\n");
+
+        sb.append("    public static void set(Object target, Object value) throws Exception {\n");
+        sb.append("        Class<?> clazz = Class.forName(\"").append(fieldData.getClassName()).append("\");\n");
+        sb.append("        java.lang.reflect.Field field = clazz.getDeclaredField(\"").append(fieldData.getFieldName()).append("\");\n");
+        sb.append("        field.setAccessible(true);\n");
+        sb.append("        field.set(target, value);\n");
+        sb.append("    }\n");
+        sb.append("}\n");
+
+        System.out.println("Generating Field Access Proxy: " + className + " for field: " + fieldData.getFieldName());
+        return sb.toString();
     }
 }

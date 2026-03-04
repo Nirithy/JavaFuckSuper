@@ -1,15 +1,20 @@
 # 全分散式 Java 语义抽离混淆器 TodoList
 
+## 架构和混淆规则
+- 架构规则：混淆后的代码绝不能使用统一入口点、Core或中央调度器。所有功能必须分散到独立的单一用途的代理类中。
+- 代码生成规则：混淆后的业务逻辑类只允许包含数字常量、变量赋值以及对分散的静态代理类的调用。必须严格避免字符串字面量、'new' 关键字、原始名称、控制流关键字(if/for/while/switch)和真实的API调用。
+- 命名规范规则：生成的混淆代理类必须严格使用特定的前缀并加上ID：字符串使用 'S'，类实例化使用 'C'，方法调用使用 'M'，字段操作使用 'F'，控制流使用 'IF' 或 'FOR'。
+
 ## 1. 基础架构搭建
 - [x] 初始化项目目录结构
 - [x] 确定并引入核心处理依赖 (针对Java代码/JAR/DEX的解析与重写)
 - [x] 编写基础的输入输出处理框架骨架
 
 ## 2. 核心混淆引擎开发 (语义抽离提取器)
-- [ ] 字符串提取与 S类 (S+数字ID) 生成器
-  - [ ] 编写 StringProxyGenerator: 生成包含 Base64 或加密字符串还原逻辑的单文件 Java 代码 (S[id])
-- [ ] 类实例化提取与 C类 (C+数字ID) 生成器
-  - [ ] 编写 ClassCreationProxyGenerator: 生成利用反射机制(Class.forName(name).newInstance())实例化对象的 Java 代码 (C[id])
+- [x] 字符串提取与 S类 (S+数字ID) 生成器
+  - [x] 编写 StringProxyGenerator: 生成包含 Base64 或加密字符串还原逻辑的单文件 Java 代码 (S[id])
+- [x] 类实例化提取与 C类 (C+数字ID) 生成器
+  - [x] 编写 ClassCreationProxyGenerator: 生成利用反射机制(Class.forName(name).newInstance())实例化对象的 Java 代码 (C[id])
 - [ ] 方法调用提取与 M类 (M+数字ID) 生成器
   - [ ] 编写 MethodProxyGenerator: 生成根据方法名/签名利用反射调用方法的 Java 代码 (M[id])
 - [ ] 字段读写提取与 F类 (F+数字ID) 生成器
