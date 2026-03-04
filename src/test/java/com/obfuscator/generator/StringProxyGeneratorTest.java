@@ -9,7 +9,7 @@ public class StringProxyGeneratorTest {
     @Test
     public void testGenerate() {
         StringProxyGenerator generator = new StringProxyGenerator();
-        String dynamicId = "O" + java.util.UUID.randomUUID().toString().replace("-", "");
+        String dynamicId = DynamicNameGenerator.generate();
         String result = (String) generator.generate(dynamicId, "Hello World");
 
         assertNotNull(result);

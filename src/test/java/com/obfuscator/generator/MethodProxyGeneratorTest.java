@@ -10,7 +10,7 @@ public class MethodProxyGeneratorTest {
     public void testGenerate() {
         MethodProxyGenerator generator = new MethodProxyGenerator();
         MethodData data = new MethodData("java.lang.String", "substring", new String[]{"int", "int"});
-        String dynamicId = "O" + java.util.UUID.randomUUID().toString().replace("-", "");
+        String dynamicId = DynamicNameGenerator.generate();
         String result = (String) generator.generate(dynamicId, data);
 
         assertNotNull(result);

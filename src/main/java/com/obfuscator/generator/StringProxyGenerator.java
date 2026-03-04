@@ -1,11 +1,10 @@
 package com.obfuscator.generator;
 
 /**
- * Generates String proxy classes (S + ID).
+ * Generates String proxy classes with dynamic names.
  * <p>
- * S1001.java
  * Every extracted string is converted into a separate class containing only a static method
- * that decrypts and returns the original string. The original caller uses S1001.get() instead of "String".
+ * that decrypts and returns the original string. The original caller uses the dynamic class method instead of "String".
  * </p>
  */
 public class StringProxyGenerator implements ProxyGenerator {

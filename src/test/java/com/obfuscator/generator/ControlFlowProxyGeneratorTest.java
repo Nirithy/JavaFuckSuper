@@ -9,7 +9,7 @@ public class ControlFlowProxyGeneratorTest {
     @Test
     public void testGenerate() {
         ControlFlowProxyGenerator generator = new ControlFlowProxyGenerator();
-        String dynamicId = "O" + java.util.UUID.randomUUID().toString().replace("-", "");
+        String dynamicId = DynamicNameGenerator.generate();
         String result = (String) generator.generate(dynamicId, "IF");
 
         assertNotNull(result);

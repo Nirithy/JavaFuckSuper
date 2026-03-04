@@ -1,11 +1,10 @@
 package com.obfuscator.generator;
 
 /**
- * Generates Field Access proxy classes (F + ID).
+ * Generates Field Access proxy classes with dynamic names.
  * <p>
- * F4001.java
  * Replaces field reads and writes (e.g., int x = obj.field; obj.field = 5;) with
- * F4001.get(obj) and F4001.set(obj, 5) using reflection.
+ * dynamic proxy calls using reflection.
  * </p>
  */
 public class FieldProxyGenerator implements ProxyGenerator {

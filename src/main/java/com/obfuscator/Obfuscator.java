@@ -2,7 +2,6 @@ package com.obfuscator;
 
 import com.obfuscator.engine.DexEngine;
 import com.obfuscator.engine.JarBytecodeEngine;
-import com.obfuscator.engine.JavaSourceEngine;
 import com.obfuscator.core.ObfuscationEngine;
 
 import java.io.File;
@@ -30,14 +29,12 @@ public class Obfuscator {
         String fileName = inputFile.getName().toLowerCase();
         ObfuscationEngine engine = null;
 
-        if (fileName.endsWith(".java")) {
-            engine = new JavaSourceEngine();
-        } else if (fileName.endsWith(".jar") || fileName.endsWith(".class")) {
+        if (fileName.endsWith(".jar") || fileName.endsWith(".class")) {
             engine = new JarBytecodeEngine();
         } else if (fileName.endsWith(".dex") || fileName.endsWith(".apk")) {
             engine = new DexEngine();
         } else {
-            System.err.println("Unsupported file format. Supported formats: .java, .jar, .class, .dex, .apk");
+            System.err.println("Unsupported file format. Supported formats: .jar, .class, .dex, .apk");
             System.exit(1);
         }
 

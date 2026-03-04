@@ -1,10 +1,9 @@
 package com.obfuscator.generator;
 
 /**
- * Generates Class Creation proxy classes (C + ID).
+ * Generates Class Creation proxy classes with dynamic names.
  * <p>
- * C2001.java
- * Replaces 'new Object()' with 'C2001.create()'.
+ * Replaces 'new Object()' with a dynamic proxy call.
  * The proxy uses reflection to instantiate the class and return the instance.
  * </p>
  */
