@@ -21,25 +21,31 @@
   - [x] 编写 FieldProxyGenerator: 生成利用反射读写特定字段的 Java 代码
 - [x] 控制流提取与代理类生成器
   - [x] 编写 ControlFlowProxyGenerator: 生成处理判断条件的 Java 代码
-- [ ] 原始业务逻辑重写引擎 (全部替换为代理类和ID调用)
-  - [ ] 构建替换规则引擎，根据提取出的常量、方法、字段自动生成对上述代理类的调用
+- [x] 原始业务逻辑重写引擎 (全部替换为代理类和ID调用)
+  - [x] 构建替换规则引擎骨架(ProxyManager)
+  - [ ] 完善替换逻辑，处理复杂的加载、运算指令映射
 
 ## 3. 不同文件格式的解析与处理实现
-- [ ] 实现对 .jar 文件的解析与混淆重写 (字节码层面 ASM)
-  - [ ] 实现 InMemoryCompiler，使用 javax.tools.JavaCompiler 动态编译代理类生成的 Java 源码
-  - [ ] 实现 ProxyManager，统筹代理类的生成、记录和名字生成，保证混淆代理类只生成一次
-  - [ ] 使用 ASM 实现基本的 ClassReader 和 ClassWriter 框架，读写 JAR 中的 .class 文件
-  - [ ] 编写 ClassVisitor 和 MethodVisitor 拦截常量池、方法指令（当前重点支持 LDC 字符串拦截）
-  - [ ] 将原始逻辑替换为对新生成的动态命名代理类的调用（如静态方法 `get()`）
-  - [ ] 将 InMemoryCompiler 编译生成的代理类 .class 文件注入到输出 JAR 包中
+- [x] 实现对 .jar 文件的解析与混淆重写 (字节码层面 ASM)
+  - [x] 实现 InMemoryCompiler，使用 javax.tools.JavaCompiler 动态编译代理类生成的 Java 源码
+  - [x] 实现 ProxyManager，统筹代理类的生成、记录和名字生成，保证混淆代理类只生成一次
+  - [x] 使用 ASM 实现基本的 ClassReader 和 ClassWriter 框架，读写 JAR 中的 .class 文件
+  - [x] 编写 ClassVisitor 和 MethodVisitor 拦截常量池、方法指令（当前重点支持 LDC 字符串拦截）
+  - [x] 将原始逻辑替换为对新生成的动态命名代理类的调用（如静态方法 `get()`）
+  - [x] 将 InMemoryCompiler 编译生成的代理类 .class 文件注入到输出 JAR 包中
+  - [ ] 实现 MethodVisitor 拦截 INVOKE 类指令替换为代理调用
+  - [ ] 实现 MethodVisitor 拦截 NEW 指令替换为代理调用
+  - [ ] 实现 MethodVisitor 拦截 FIELD 读写指令替换为代理调用
 - [ ] 实现对 .dex 文件的解析与混淆重写 (Dexlib2/Smali)
   - [ ] 使用 Dexlib2 实现基础的 DEX 文件读取和写入骨架
   - [ ] 解析 Dex 文件结构，注入动态命名的代理类
   - [ ] 修改现有的 Smali 指令或指令替换为对代理类的调用
+  - [ ] 支持 APK 文件的签名和重新打包
 
 ## 4. 混淆类随机化与加固
-- [ ] 代理类内部逻辑多样化
-  - [ ] 随机挑选对称加密 (AES/DES) 算法、异或算法或多重 Base64 算法生成还原方法
+- [x] 代理类内部逻辑多样化
+  - [x] 随机挑选异或算法或多重 Base64 算法生成还原方法 (StringProxyGenerator)
+  - [ ] 为其他代理类引入逻辑随机化
 - [ ] 反射与 MethodHandle 混合使用
   - [ ] 在代理类中随机使用传统 Reflection 或 JDK 7+ MethodHandle 调用目标方法
 - [ ] 无效死代码与花指令生成
@@ -50,6 +56,7 @@
   - [x] 为 StringProxyGenerator 编写单元测试
   - [x] 为 ClassCreationProxyGenerator 编写单元测试
   - [x] 为 MethodProxyGenerator / FieldProxyGenerator 编写单元测试
-  - [ ] 为 JarBytecodeEngine / ObfuscationClassVisitor 编写单元测试
+  - [x] 为 JarBytecodeEngine / ObfuscationClassVisitor 编写基础测试 (LDC测试)
+  - [ ] 为 JarBytecodeEngine 编写更全面的测试 (包括 Method, Class Creation 拦截)
 - [ ] 针对真实复杂应用 (Spring Boot, Android App) 进行混淆与反编译效果评估
   - [ ] 测试被混淆的应用的反编译抗性与运行时性能损耗

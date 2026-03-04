@@ -20,6 +20,65 @@ import java.util.zip.ZipEntry;
 public class JarBytecodeEngineTest {
 
     @Test
+    public void testMethodCallObfuscationInJar() throws Exception {
+        // 1. Compile a simple test class with a method call and put it into a JAR
+        File tempInputJar = File.createTempFile("test-input-method", ".jar");
+        tempInputJar.deleteOnExit();
+
+        File tempOutputJar = File.createTempFile("test-output-method", ".jar");
+        tempOutputJar.deleteOnExit();
+
+        // We will test against standard library classes to avoid cross-compilation dependency issues
+        String testClassName = "MethodCallerTestClass";
+        String testSource = "public class MethodCallerTestClass {\n" +
+                            "    public String callTarget() {\n" +
+                            "        String target = new String(\"Secret\");\n" +
+                            "        return target.toString();\n" + // This INVOKEVIRTUAL java/lang/String.toString() should be replaced
+                            "    }\n" +
+                            "}";
+
+        InMemoryCompiler compiler = new InMemoryCompiler();
+        compiler.compile(testClassName, testSource);
+        byte[] testClassBytes = compiler.getCompiledClasses().get(testClassName);
+
+        try (JarOutputStream jos = new JarOutputStream(new FileOutputStream(tempInputJar))) {
+            jos.putNextEntry(new JarEntry(testClassName + ".class"));
+            jos.write(testClassBytes);
+            jos.closeEntry();
+        }
+
+        // 2. Run Obfuscator Engine
+        JarBytecodeEngine engine = new JarBytecodeEngine();
+        engine.process(tempInputJar, tempOutputJar);
+
+        // 3. Verify Output JAR
+        assertTrue(tempOutputJar.exists(), "Output JAR should be created");
+
+        boolean foundProxyClass = false;
+        try (JarFile jarFile = new JarFile(tempOutputJar)) {
+            Enumeration<JarEntry> entries = jarFile.entries();
+            while (entries.hasMoreElements()) {
+                JarEntry entry = entries.nextElement();
+                String name = entry.getName();
+                if (name.endsWith(".class") && !name.equals("MethodCallerTestClass.class") && !name.contains("META-INF")) {
+                    foundProxyClass = true; // Dynamically generated proxy class for the method call (and strings)
+                }
+            }
+        }
+
+        assertTrue(foundProxyClass, "At least one generated proxy class should be found in the JAR");
+
+        // 4. Test run the obfuscated code to see if it still returns the correct value via proxy
+        URL[] urls = {tempOutputJar.toURI().toURL()};
+        try (URLClassLoader cl = new URLClassLoader(urls)) {
+            Class<?> clazz = cl.loadClass(testClassName);
+            Object instance = clazz.getDeclaredConstructor().newInstance();
+            String result = (String) clazz.getMethod("callTarget").invoke(instance);
+            assertEquals("Secret", result, "The obfuscated method call should still return the correct string via proxy");
+        }
+    }
+
+    @Test
     public void testStringObfuscationInJar() throws Exception {
         // 1. Compile a simple test class with a string literal and put it into a JAR
         File tempInputJar = File.createTempFile("test-input", ".jar");

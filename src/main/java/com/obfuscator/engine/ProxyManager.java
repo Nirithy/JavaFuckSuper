@@ -13,8 +13,12 @@ import java.util.Map;
 public class ProxyManager {
     // Maps original value to generated proxy class name
     private final Map<String, String> stringProxies = new HashMap<>();
+    private final Map<String, String> methodProxies = new HashMap<>();
+    private final Map<String, String> classCreationProxies = new HashMap<>();
 
     private final StringProxyGenerator stringProxyGenerator = new StringProxyGenerator();
+    private final com.obfuscator.generator.MethodProxyGenerator methodProxyGenerator = new com.obfuscator.generator.MethodProxyGenerator();
+    private final com.obfuscator.generator.ClassCreationProxyGenerator classCreationProxyGenerator = new com.obfuscator.generator.ClassCreationProxyGenerator();
     private final InMemoryCompiler compiler = new InMemoryCompiler();
 
     /**
@@ -40,9 +44,44 @@ public class ProxyManager {
     }
 
     /**
-     * Gets all compiled proxy classes.
-     * @return A map of class names to their compiled bytecode.
+     * Retrieves or generates a Method proxy.
+     * @param methodData The method information.
+     * @return The dynamically generated class name of the proxy.
      */
+    public String getMethodProxy(com.obfuscator.generator.MethodData methodData) {
+        String key = methodData.getClassName() + "." + methodData.getMethodName() + ":" + java.util.Arrays.toString(methodData.getParamTypes());
+        if (methodProxies.containsKey(key)) {
+            return methodProxies.get(key);
+        }
+
+        String proxyName = DynamicNameGenerator.generate();
+        methodProxies.put(key, proxyName);
+
+        String sourceCode = (String) methodProxyGenerator.generate(proxyName, methodData);
+        compiler.compile(proxyName, sourceCode);
+
+        return proxyName;
+    }
+
+    /**
+     * Retrieves or generates a Class Creation proxy.
+     * @param className The class name to instantiate.
+     * @return The dynamically generated class name of the proxy.
+     */
+    public String getClassCreationProxy(String className) {
+        if (classCreationProxies.containsKey(className)) {
+            return classCreationProxies.get(className);
+        }
+
+        String proxyName = DynamicNameGenerator.generate();
+        classCreationProxies.put(className, proxyName);
+
+        String sourceCode = (String) classCreationProxyGenerator.generate(proxyName, className);
+        compiler.compile(proxyName, sourceCode);
+
+        return proxyName;
+    }
+
     public Map<String, byte[]> getCompiledProxies() {
         return compiler.getCompiledClasses();
     }
