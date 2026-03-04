@@ -15,10 +15,12 @@ public class ProxyManager {
     private final Map<String, String> stringProxies = new HashMap<>();
     private final Map<String, String> methodProxies = new HashMap<>();
     private final Map<String, String> classCreationProxies = new HashMap<>();
+    private final Map<String, String> fieldProxies = new HashMap<>();
 
     private final StringProxyGenerator stringProxyGenerator = new StringProxyGenerator();
     private final com.obfuscator.generator.MethodProxyGenerator methodProxyGenerator = new com.obfuscator.generator.MethodProxyGenerator();
     private final com.obfuscator.generator.ClassCreationProxyGenerator classCreationProxyGenerator = new com.obfuscator.generator.ClassCreationProxyGenerator();
+    private final com.obfuscator.generator.FieldProxyGenerator fieldProxyGenerator = new com.obfuscator.generator.FieldProxyGenerator();
     private final InMemoryCompiler compiler = new InMemoryCompiler();
 
     /**
@@ -77,6 +79,26 @@ public class ProxyManager {
         classCreationProxies.put(className, proxyName);
 
         String sourceCode = (String) classCreationProxyGenerator.generate(proxyName, className);
+        compiler.compile(proxyName, sourceCode);
+
+        return proxyName;
+    }
+
+    /**
+     * Retrieves or generates a Field proxy.
+     * @param fieldData The field information.
+     * @return The dynamically generated class name of the proxy.
+     */
+    public String getFieldProxy(com.obfuscator.generator.FieldData fieldData) {
+        String key = fieldData.getClassName() + "." + fieldData.getFieldName();
+        if (fieldProxies.containsKey(key)) {
+            return fieldProxies.get(key);
+        }
+
+        String proxyName = DynamicNameGenerator.generate();
+        fieldProxies.put(key, proxyName);
+
+        String sourceCode = (String) fieldProxyGenerator.generate(proxyName, fieldData);
         compiler.compile(proxyName, sourceCode);
 
         return proxyName;
