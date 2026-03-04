@@ -12,7 +12,7 @@ public class StringProxyGenerator implements ProxyGenerator {
 
     @Override
     public Object generate(String id, Object data) {
-        String className = "S" + id;
+        String className = id;
         String originalString = (String) data;
 
         // Base64 encode the string to obfuscate it

@@ -9,10 +9,11 @@ public class ControlFlowProxyGeneratorTest {
     @Test
     public void testGenerate() {
         ControlFlowProxyGenerator generator = new ControlFlowProxyGenerator();
-        String result = (String) generator.generate("5001", "IF");
+        String dynamicId = "O" + java.util.UUID.randomUUID().toString().replace("-", "");
+        String result = (String) generator.generate(dynamicId, "IF");
 
         assertNotNull(result);
-        assertTrue(result.contains("public class IF5001"));
+        assertTrue(result.contains("public class " + dynamicId));
         assertTrue(result.contains("public static boolean eval(String op, int a, int b)"));
         assertTrue(result.contains("public static boolean eval(String op, Object a, Object b)"));
         assertTrue(result.contains("case \"==\": return a == b;"));

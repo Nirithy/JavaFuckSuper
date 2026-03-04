@@ -12,7 +12,7 @@ public class MethodProxyGenerator implements ProxyGenerator {
 
     @Override
     public Object generate(String id, Object data) {
-        String className = "M" + id;
+        String className = id;
         if (!(data instanceof MethodData)) {
             throw new IllegalArgumentException("Data must be an instance of MethodData");
         }
