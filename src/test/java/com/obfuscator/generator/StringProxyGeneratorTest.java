@@ -9,10 +9,11 @@ public class StringProxyGeneratorTest {
     @Test
     public void testGenerate() {
         StringProxyGenerator generator = new StringProxyGenerator();
-        String result = (String) generator.generate("1001", "Hello World");
+        String dynamicId = "O" + java.util.UUID.randomUUID().toString().replace("-", "");
+        String result = (String) generator.generate(dynamicId, "Hello World");
 
         assertNotNull(result);
-        assertTrue(result.contains("public class S1001"));
+        assertTrue(result.contains("public class " + dynamicId));
         assertTrue(result.contains("public static String get()"));
         assertTrue(result.contains("java.util.Base64.getDecoder().decode"));
 

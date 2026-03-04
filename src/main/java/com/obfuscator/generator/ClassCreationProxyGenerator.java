@@ -12,7 +12,7 @@ public class ClassCreationProxyGenerator implements ProxyGenerator {
 
     @Override
     public Object generate(String id, Object data) {
-        String className = "C" + id;
+        String className = id;
         String targetClass = (String) data; // e.g. "java.util.ArrayList"
 
         StringBuilder sb = new StringBuilder();

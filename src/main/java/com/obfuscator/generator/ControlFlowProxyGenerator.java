@@ -17,7 +17,7 @@ public class ControlFlowProxyGenerator implements ProxyGenerator {
         }
 
         String prefix = (String) data; // e.g. "IF" or "FOR" or "WHILE"
-        String className = prefix + id;
+        String className = id;
 
         StringBuilder sb = new StringBuilder();
         sb.append("public class ").append(className).append(" {\n");

@@ -12,7 +12,7 @@ public class FieldProxyGenerator implements ProxyGenerator {
 
     @Override
     public Object generate(String id, Object data) {
-        String className = "F" + id;
+        String className = id;
 
         if (!(data instanceof FieldData)) {
             throw new IllegalArgumentException("Data must be an instance of FieldData");

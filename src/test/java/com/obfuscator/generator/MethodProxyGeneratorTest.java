@@ -10,10 +10,11 @@ public class MethodProxyGeneratorTest {
     public void testGenerate() {
         MethodProxyGenerator generator = new MethodProxyGenerator();
         MethodData data = new MethodData("java.lang.String", "substring", new String[]{"int", "int"});
-        String result = (String) generator.generate("3001", data);
+        String dynamicId = "O" + java.util.UUID.randomUUID().toString().replace("-", "");
+        String result = (String) generator.generate(dynamicId, data);
 
         assertNotNull(result);
-        assertTrue(result.contains("public class M3001"));
+        assertTrue(result.contains("public class " + dynamicId));
         assertTrue(result.contains("public static Object invoke(Object target, Object[] args)"));
         assertTrue(result.contains("Class.forName(\"java.lang.String\")"));
         assertTrue(result.contains("getDeclaredMethod(\"substring\", paramClasses)"));
