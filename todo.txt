@@ -7,22 +7,38 @@
 
 ## 2. 核心混淆引擎开发 (语义抽离提取器)
 - [ ] 字符串提取与 S类 (S+数字ID) 生成器
+  - [ ] 编写 StringProxyGenerator: 生成包含 Base64 或加密字符串还原逻辑的单文件 Java 代码 (S[id])
 - [ ] 类实例化提取与 C类 (C+数字ID) 生成器
+  - [ ] 编写 ClassCreationProxyGenerator: 生成利用反射机制(Class.forName(name).newInstance())实例化对象的 Java 代码 (C[id])
 - [ ] 方法调用提取与 M类 (M+数字ID) 生成器
+  - [ ] 编写 MethodProxyGenerator: 生成根据方法名/签名利用反射调用方法的 Java 代码 (M[id])
 - [ ] 字段读写提取与 F类 (F+数字ID) 生成器
+  - [ ] 编写 FieldProxyGenerator: 生成利用反射读写特定字段的 Java 代码 (F[id])
 - [ ] 控制流提取与 IF/FOR/WHILE类 生成器
+  - [ ] 编写 ControlFlowProxyGenerator: 生成处理判断条件的 Java 代码 (IF[id], FOR[id], WHILE[id])
 - [ ] 原始业务逻辑重写引擎 (全部替换为代理类和ID调用)
+  - [ ] 构建替换规则引擎，根据提取出的常量、方法、字段自动生成对上述代理类的调用
 
 ## 3. 不同文件格式的解析与处理实现
 - [ ] 实现对 .java 源代码的解析与混淆重写 (AST层面)
+  - [ ] 集成 JavaParser 遍历并改写 AST，剥离字面量和原生调用，写入临时目录
 - [ ] 实现对 .jar 文件的解析与混淆重写 (字节码层面 ASM)
+  - [ ] 编写 ClassVisitor 重写常量池、方法指令，生成对应的 S/C/M/F/IF 类的字节码
 - [ ] 实现对 .dex 文件的解析与混淆重写 (Dexlib2/Smali)
+  - [ ] 解析 Dex 文件结构，注入和修改 Smali 指令
 
 ## 4. 混淆类随机化与加固
 - [ ] 代理类内部逻辑多样化 (如 S类 使用不同的加解密/异或算法)
+  - [ ] 随机挑选对称加密 (AES/DES) 算法、异或算法或多重 Base64 算法生成 `S` 类还原方法
 - [ ] 反射与 MethodHandle 混合使用
+  - [ ] 在 `M` 类中随机使用传统 Reflection 或 JDK 7+ MethodHandle 调用目标方法
 - [ ] 无效死代码与花指令生成
+  - [ ] 在生成的代理类内插入对运行结果无影响的复杂算术运算和条件分支
 
 ## 5. 测试验证模块
 - [ ] 编写测试用例验证 S/C/M/F 类的生成与运行正确性
+  - [ ] 为 StringProxyGenerator 编写单元测试，验证其生成的代码能否成功解密还原原始字符串
+  - [ ] 为 ClassCreationProxyGenerator 编写单元测试，验证其生成的反射代码能否成功创建目标对象
+  - [ ] 为 MethodProxyGenerator / FieldProxyGenerator 编写相关单元测试
 - [ ] 针对真实复杂应用 (Spring Boot, Android App) 进行混淆与反编译效果评估
+  - [ ] 测试被混淆的应用的反编译抗性与运行时性能损耗

@@ -15,10 +15,19 @@ public class StringProxyGenerator implements ProxyGenerator {
         String className = "S" + id;
         String originalString = (String) data;
 
-        // TODO: Generate obfuscated/encrypted source code or bytecode for a class named `S[id]`
-        // which contains a single static method returning the decrypted string.
+        // Base64 encode the string to obfuscate it
+        String encodedString = java.util.Base64.getEncoder().encodeToString(originalString.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+
+        StringBuilder sb = new StringBuilder();
+        sb.append("public class ").append(className).append(" {\n");
+        sb.append("    public static String get() {\n");
+        sb.append("        String encoded = \"").append(encodedString).append("\";\n");
+        sb.append("        byte[] decoded = java.util.Base64.getDecoder().decode(encoded);\n");
+        sb.append("        return new String(decoded, java.nio.charset.StandardCharsets.UTF_8);\n");
+        sb.append("    }\n");
+        sb.append("}\n");
 
         System.out.println("Generating String Proxy: " + className + " for string: " + originalString);
-        return null; // Return AST/Bytecode object
+        return sb.toString();
     }
 }
