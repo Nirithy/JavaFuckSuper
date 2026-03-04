@@ -1,0 +1,10 @@
+target/
+*.class
+*.jar
+*.dex
+*.apk
+.idea/
+*.iml
+.settings/
+.classpath
+.project
