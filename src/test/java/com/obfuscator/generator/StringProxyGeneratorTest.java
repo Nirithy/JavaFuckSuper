@@ -15,7 +15,7 @@ public class StringProxyGeneratorTest {
         assertNotNull(result);
         assertTrue(result.contains("public class " + dynamicId));
         assertTrue(result.contains("public static String get()"));
-        assertTrue(result.contains("java.util.Base64.getDecoder().decode"));
+        assertTrue(result.contains("java.util.Base64.getDecoder().decode") || result.contains("^ key"));
 
         // Ensure "Hello World" is NOT directly in the output source
         assertTrue(!result.contains("\"Hello World\""));

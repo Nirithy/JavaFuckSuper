@@ -14,15 +14,36 @@ public class StringProxyGenerator implements ProxyGenerator {
         String className = id;
         String originalString = (String) data;
 
-        // Base64 encode the string to obfuscate it
-        String encodedString = java.util.Base64.getEncoder().encodeToString(originalString.getBytes(java.nio.charset.StandardCharsets.UTF_8));
-
         StringBuilder sb = new StringBuilder();
         sb.append("public class ").append(className).append(" {\n");
         sb.append("    public static String get() {\n");
-        sb.append("        String encoded = \"").append(encodedString).append("\";\n");
-        sb.append("        byte[] decoded = java.util.Base64.getDecoder().decode(encoded);\n");
-        sb.append("        return new String(decoded, java.nio.charset.StandardCharsets.UTF_8);\n");
+
+        if (Math.random() > 0.5) {
+            // Generate Base64 decryption logic
+            String encodedString = java.util.Base64.getEncoder().encodeToString(originalString.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+            sb.append("        String encoded = \"").append(encodedString).append("\";\n");
+            sb.append("        byte[] decoded = java.util.Base64.getDecoder().decode(encoded);\n");
+            sb.append("        return new String(decoded, java.nio.charset.StandardCharsets.UTF_8);\n");
+        } else {
+            // Generate XOR decryption logic
+            byte key = (byte) (Math.random() * 254 + 1); // Random byte key 1-255
+            byte[] bytes = originalString.getBytes(java.nio.charset.StandardCharsets.UTF_8);
+            StringBuilder byteString = new StringBuilder();
+            byteString.append("new byte[]{");
+            for (int i = 0; i < bytes.length; i++) {
+                byteString.append((byte) (bytes[i] ^ key));
+                if (i < bytes.length - 1) byteString.append(",");
+            }
+            byteString.append("}");
+
+            sb.append("        byte[] data = ").append(byteString.toString()).append(";\n");
+            sb.append("        byte key = (byte) ").append(key).append(";\n");
+            sb.append("        for (int i = 0; i < data.length; i++) {\n");
+            sb.append("            data[i] = (byte) (data[i] ^ key);\n");
+            sb.append("        }\n");
+            sb.append("        return new String(data, java.nio.charset.StandardCharsets.UTF_8);\n");
+        }
+
         sb.append("    }\n");
         sb.append("}\n");
 
