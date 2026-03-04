@@ -1,9 +1,8 @@
 package com.obfuscator.generator;
 
 /**
- * Generates Control Flow proxy classes (IF/FOR + ID).
+ * Generates Control Flow proxy classes with dynamic names.
  * <p>
- * IF5001.java
  * Replaces logical branch instructions with delegate classes. Each distinct branch condition
  * logic is extracted into its own class to break control flow graphs.
  * </p>

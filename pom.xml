@@ -15,13 +15,6 @@
     </properties>
 
     <dependencies>
-        <!-- JavaParser for AST level manipulation (.java files) -->
-        <dependency>
-            <groupId>com.github.javaparser</groupId>
-            <artifactId>javaparser-core</artifactId>
-            <version>3.25.8</version>
-        </dependency>
-
         <!-- ASM for Bytecode level manipulation (.jar files) -->
         <dependency>
             <groupId>org.ow2.asm</groupId>

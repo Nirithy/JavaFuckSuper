@@ -9,7 +9,7 @@ public class ClassCreationProxyGeneratorTest {
     @Test
     public void testGenerate() {
         ClassCreationProxyGenerator generator = new ClassCreationProxyGenerator();
-        String dynamicId = "O" + java.util.UUID.randomUUID().toString().replace("-", "");
+        String dynamicId = DynamicNameGenerator.generate();
         String result = (String) generator.generate(dynamicId, "java.util.ArrayList");
 
         assertNotNull(result);

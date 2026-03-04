@@ -10,7 +10,7 @@ public class FieldProxyGeneratorTest {
     public void testGenerate() {
         FieldProxyGenerator generator = new FieldProxyGenerator();
         FieldData data = new FieldData("java.awt.Point", "x");
-        String dynamicId = "O" + java.util.UUID.randomUUID().toString().replace("-", "");
+        String dynamicId = DynamicNameGenerator.generate();
         String result = (String) generator.generate(dynamicId, data);
 
         assertNotNull(result);

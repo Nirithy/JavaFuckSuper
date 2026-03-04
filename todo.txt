@@ -3,47 +3,49 @@
 ## 架构和混淆规则
 - 架构规则：混淆后的代码绝不能使用统一入口点、Core或中央调度器。所有功能必须分散到独立的单一用途的代理类中。
 - 代码生成规则：混淆后的业务逻辑类只允许包含数字常量、变量赋值以及对分散的静态代理类的调用。必须严格避免字符串字面量、'new' 关键字、原始名称、控制流关键字(if/for/while/switch)和真实的API调用。
-- 命名规范规则：生成的混淆代理类必须严格使用特定的前缀并加上ID：字符串使用 'S'，类实例化使用 'C'，方法调用使用 'M'，字段操作使用 'F'，控制流使用 'IF' 或 'FOR'。
+- 命名规范规则：生成的混淆代理类必须具有完全动态的名称（例如，随机生成的有效Java标识符，如UUID变体），没有任何硬编码字符串、可预测的前缀或固定格式。
 
 ## 1. 基础架构搭建
 - [x] 初始化项目目录结构
-- [x] 确定并引入核心处理依赖 (针对Java代码/JAR/DEX的解析与重写)
+- [x] 确定并引入核心处理依赖 (针对JAR/DEX的解析与重写)
 - [x] 编写基础的输入输出处理框架骨架
 
 ## 2. 核心混淆引擎开发 (语义抽离提取器)
-- [x] 字符串提取与 S类 (S+数字ID) 生成器
-  - [x] 编写 StringProxyGenerator: 生成包含 Base64 或加密字符串还原逻辑的单文件 Java 代码 (S[id])
-- [x] 类实例化提取与 C类 (C+数字ID) 生成器
-  - [x] 编写 ClassCreationProxyGenerator: 生成利用反射机制(Class.forName(name).newInstance())实例化对象的 Java 代码 (C[id])
-- [ ] 方法调用提取与 M类 (M+数字ID) 生成器
-  - [ ] 编写 MethodProxyGenerator: 生成根据方法名/签名利用反射调用方法的 Java 代码 (M[id])
-- [ ] 字段读写提取与 F类 (F+数字ID) 生成器
-  - [ ] 编写 FieldProxyGenerator: 生成利用反射读写特定字段的 Java 代码 (F[id])
-- [ ] 控制流提取与 IF/FOR/WHILE类 生成器
-  - [ ] 编写 ControlFlowProxyGenerator: 生成处理判断条件的 Java 代码 (IF[id], FOR[id], WHILE[id])
+- [x] 字符串提取与代理类生成器
+  - [x] 编写 StringProxyGenerator: 生成包含 Base64 或加密字符串还原逻辑的单文件 Java 代码
+- [x] 类实例化提取与代理类生成器
+  - [x] 编写 ClassCreationProxyGenerator: 生成利用反射机制(Class.forName(name).newInstance())实例化对象的 Java 代码
+- [x] 方法调用提取与代理类生成器
+  - [x] 编写 MethodProxyGenerator: 生成根据方法名/签名利用反射调用方法的 Java 代码
+- [x] 字段读写提取与代理类生成器
+  - [x] 编写 FieldProxyGenerator: 生成利用反射读写特定字段的 Java 代码
+- [x] 控制流提取与代理类生成器
+  - [x] 编写 ControlFlowProxyGenerator: 生成处理判断条件的 Java 代码
 - [ ] 原始业务逻辑重写引擎 (全部替换为代理类和ID调用)
   - [ ] 构建替换规则引擎，根据提取出的常量、方法、字段自动生成对上述代理类的调用
 
 ## 3. 不同文件格式的解析与处理实现
-- [ ] 实现对 .java 源代码的解析与混淆重写 (AST层面)
-  - [ ] 集成 JavaParser 遍历并改写 AST，剥离字面量和原生调用，写入临时目录
 - [ ] 实现对 .jar 文件的解析与混淆重写 (字节码层面 ASM)
-  - [ ] 编写 ClassVisitor 重写常量池、方法指令，生成对应的 S/C/M/F/IF 类的字节码
+  - [ ] 使用 ASM 实现基本的 ClassReader 和 ClassWriter 框架，读写 JAR 中的 .class 文件
+  - [ ] 编写 ClassVisitor 重写常量池、方法指令，提取并生成对应的代理类的字节码
+  - [ ] 将原始逻辑替换为对新生成的动态命名代理类的调用
 - [ ] 实现对 .dex 文件的解析与混淆重写 (Dexlib2/Smali)
-  - [ ] 解析 Dex 文件结构，注入和修改 Smali 指令
+  - [ ] 使用 Dexlib2 实现基础的 DEX 文件读取和写入骨架
+  - [ ] 解析 Dex 文件结构，注入动态命名的代理类
+  - [ ] 修改现有的 Smali 指令或指令替换为对代理类的调用
 
 ## 4. 混淆类随机化与加固
-- [ ] 代理类内部逻辑多样化 (如 S类 使用不同的加解密/异或算法)
-  - [ ] 随机挑选对称加密 (AES/DES) 算法、异或算法或多重 Base64 算法生成 `S` 类还原方法
+- [ ] 代理类内部逻辑多样化
+  - [ ] 随机挑选对称加密 (AES/DES) 算法、异或算法或多重 Base64 算法生成还原方法
 - [ ] 反射与 MethodHandle 混合使用
-  - [ ] 在 `M` 类中随机使用传统 Reflection 或 JDK 7+ MethodHandle 调用目标方法
+  - [ ] 在代理类中随机使用传统 Reflection 或 JDK 7+ MethodHandle 调用目标方法
 - [ ] 无效死代码与花指令生成
   - [ ] 在生成的代理类内插入对运行结果无影响的复杂算术运算和条件分支
 
 ## 5. 测试验证模块
-- [ ] 编写测试用例验证 S/C/M/F 类的生成与运行正确性
-  - [ ] 为 StringProxyGenerator 编写单元测试，验证其生成的代码能否成功解密还原原始字符串
-  - [ ] 为 ClassCreationProxyGenerator 编写单元测试，验证其生成的反射代码能否成功创建目标对象
-  - [ ] 为 MethodProxyGenerator / FieldProxyGenerator 编写相关单元测试
+- [x] 编写测试用例验证代理类的生成与运行正确性
+  - [x] 为 StringProxyGenerator 编写单元测试
+  - [x] 为 ClassCreationProxyGenerator 编写单元测试
+  - [x] 为 MethodProxyGenerator / FieldProxyGenerator 编写单元测试
 - [ ] 针对真实复杂应用 (Spring Boot, Android App) 进行混淆与反编译效果评估
   - [ ] 测试被混淆的应用的反编译抗性与运行时性能损耗

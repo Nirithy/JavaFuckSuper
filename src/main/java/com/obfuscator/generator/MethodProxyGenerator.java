@@ -1,10 +1,9 @@
 package com.obfuscator.generator;
 
 /**
- * Generates Method Invocation proxy classes (M + ID).
+ * Generates Method Invocation proxy classes with dynamic names.
  * <p>
- * M3001.java
- * Replaces direct method calls (e.g., obj.doSomething(arg1)) with proxy calls (M3001.invoke(obj, arg1)).
+ * Replaces direct method calls (e.g., obj.doSomething(arg1)) with dynamic proxy calls.
  * Uses reflection to locate and invoke the method on the target object.
  * </p>
  */
