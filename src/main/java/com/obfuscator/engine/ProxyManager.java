@@ -16,11 +16,13 @@ public class ProxyManager {
     private final Map<String, String> methodProxies = new HashMap<>();
     private final Map<String, String> classCreationProxies = new HashMap<>();
     private final Map<String, String> fieldProxies = new HashMap<>();
+    private final Map<String, String> controlFlowProxies = new HashMap<>();
 
     private final StringProxyGenerator stringProxyGenerator = new StringProxyGenerator();
     private final com.obfuscator.generator.MethodProxyGenerator methodProxyGenerator = new com.obfuscator.generator.MethodProxyGenerator();
     private final com.obfuscator.generator.ClassCreationProxyGenerator classCreationProxyGenerator = new com.obfuscator.generator.ClassCreationProxyGenerator();
     private final com.obfuscator.generator.FieldProxyGenerator fieldProxyGenerator = new com.obfuscator.generator.FieldProxyGenerator();
+    private final com.obfuscator.generator.ControlFlowProxyGenerator controlFlowProxyGenerator = new com.obfuscator.generator.ControlFlowProxyGenerator();
     private final InMemoryCompiler compiler = new InMemoryCompiler();
 
     /**
@@ -99,6 +101,25 @@ public class ProxyManager {
         fieldProxies.put(key, proxyName);
 
         String sourceCode = (String) fieldProxyGenerator.generate(proxyName, fieldData);
+        compiler.compile(proxyName, sourceCode);
+
+        return proxyName;
+    }
+
+    /**
+     * Retrieves or generates a Control Flow proxy.
+     * @param prefix The logic type prefix (e.g., "IF", "FOR").
+     * @return The dynamically generated class name of the proxy.
+     */
+    public String getControlFlowProxy(String prefix) {
+        if (controlFlowProxies.containsKey(prefix)) {
+            return controlFlowProxies.get(prefix);
+        }
+
+        String proxyName = DynamicNameGenerator.generate();
+        controlFlowProxies.put(prefix, proxyName);
+
+        String sourceCode = (String) controlFlowProxyGenerator.generate(proxyName, prefix);
         compiler.compile(proxyName, sourceCode);
 
         return proxyName;
