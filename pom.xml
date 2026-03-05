@@ -14,7 +14,20 @@
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     </properties>
 
+    <repositories>
+        <repository>
+            <id>google</id>
+            <url>https://maven.google.com</url>
+        </repository>
+    </repositories>
+
     <dependencies>
+        <dependency>
+            <groupId>com.android.tools</groupId>
+            <artifactId>r8</artifactId>
+            <version>8.2.33</version>
+        </dependency>
+
         <!-- ASM for Bytecode level manipulation (.jar files) -->
         <dependency>
             <groupId>org.ow2.asm</groupId>
@@ -38,6 +51,11 @@
             <groupId>org.smali</groupId>
             <artifactId>dexlib2</artifactId>
             <version>2.5.2</version>
+        </dependency>
+        <dependency>
+            <groupId>com.google.guava</groupId>
+            <artifactId>guava</artifactId>
+            <version>31.1-jre</version>
         </dependency>
 
         <!-- JUnit for Testing -->
