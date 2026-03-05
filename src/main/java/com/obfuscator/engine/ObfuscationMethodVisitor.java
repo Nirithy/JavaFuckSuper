@@ -218,6 +218,90 @@ public class ObfuscationMethodVisitor extends MethodNode {
                 } else {
                     instructions.add(subList);
                 }
+            } else if (insn.getOpcode() == Opcodes.IXOR) {
+                // Instruction Substitution: a ^ b -> (a | b) - (a & b)
+                InsnList subList = new InsnList();
+                // Stack: a, b
+                subList.add(new InsnNode(Opcodes.DUP2));
+                // Stack: a, b, a, b
+                subList.add(new InsnNode(Opcodes.IOR));
+                // Stack: a, b, (a | b)
+                // We need to move (a | b) under a, b.
+                // a, b are two words. (a|b) is one word.
+                // dup_x2: [a, b, (a|b)] -> [(a|b), a, b, (a|b)]
+                // pop: [(a|b), a, b]
+                subList.add(new InsnNode(Opcodes.DUP_X2));
+                subList.add(new InsnNode(Opcodes.POP));
+                // Stack: (a|b), a, b
+                subList.add(new InsnNode(Opcodes.IAND));
+                // Stack: (a|b), (a&b)
+                subList.add(new InsnNode(Opcodes.ISUB));
+                // Stack: (a|b) - (a&b)
+
+                iterator.remove();
+                AbstractInsnNode nextNode = iterator.hasNext() ? iterator.next() : null;
+                if (nextNode != null) {
+                    instructions.insertBefore(nextNode, subList);
+                    iterator.previous();
+                } else {
+                    instructions.add(subList);
+                }
+            } else if (insn.getOpcode() == Opcodes.IAND) {
+                // Instruction Substitution: a & b -> ~(~a | ~b)
+                InsnList subList = new InsnList();
+                // Stack: a, b
+                // We need to invert both.
+                // Stack: a, b -> a, ~b
+                subList.add(new InsnNode(Opcodes.ICONST_M1));
+                subList.add(new InsnNode(Opcodes.IXOR));
+                // Stack: a, ~b. Move ~b down.
+                // swap: [a, ~b] -> [~b, a]
+                subList.add(new InsnNode(Opcodes.SWAP));
+                // Stack: ~b, a -> ~b, ~a
+                subList.add(new InsnNode(Opcodes.ICONST_M1));
+                subList.add(new InsnNode(Opcodes.IXOR));
+                // Stack: ~b, ~a.
+                subList.add(new InsnNode(Opcodes.IOR));
+                // Stack: (~b | ~a) -> ~(~b | ~a)
+                subList.add(new InsnNode(Opcodes.ICONST_M1));
+                subList.add(new InsnNode(Opcodes.IXOR));
+
+                iterator.remove();
+                AbstractInsnNode nextNode = iterator.hasNext() ? iterator.next() : null;
+                if (nextNode != null) {
+                    instructions.insertBefore(nextNode, subList);
+                    iterator.previous();
+                } else {
+                    instructions.add(subList);
+                }
+            } else if (insn.getOpcode() == Opcodes.IOR) {
+                // Instruction Substitution: a | b -> ~(~a & ~b)
+                InsnList subList = new InsnList();
+                // Stack: a, b
+                // We need to invert both.
+                // Stack: a, b -> a, ~b
+                subList.add(new InsnNode(Opcodes.ICONST_M1));
+                subList.add(new InsnNode(Opcodes.IXOR));
+                // Stack: a, ~b. Move ~b down.
+                // swap: [a, ~b] -> [~b, a]
+                subList.add(new InsnNode(Opcodes.SWAP));
+                // Stack: ~b, a -> ~b, ~a
+                subList.add(new InsnNode(Opcodes.ICONST_M1));
+                subList.add(new InsnNode(Opcodes.IXOR));
+                // Stack: ~b, ~a.
+                subList.add(new InsnNode(Opcodes.IAND));
+                // Stack: (~b & ~a) -> ~(~b & ~a)
+                subList.add(new InsnNode(Opcodes.ICONST_M1));
+                subList.add(new InsnNode(Opcodes.IXOR));
+
+                iterator.remove();
+                AbstractInsnNode nextNode = iterator.hasNext() ? iterator.next() : null;
+                if (nextNode != null) {
+                    instructions.insertBefore(nextNode, subList);
+                    iterator.previous();
+                } else {
+                    instructions.add(subList);
+                }
             } else if (insn.getType() == AbstractInsnNode.LDC_INSN) {
                 LdcInsnNode ldcInsn = (LdcInsnNode) insn;
                 if (ldcInsn.cst instanceof String) {
@@ -230,13 +314,7 @@ public class ObfuscationMethodVisitor extends MethodNode {
                     iterator.set(proxyCall);
                 } else if (ldcInsn.cst instanceof Integer) {
                     int val = (Integer) ldcInsn.cst;
-                    int key = java.util.concurrent.ThreadLocalRandom.current().nextInt();
-                    int xored = val ^ key;
-
-                    InsnList numList = new InsnList();
-                    pushInt(numList, xored);
-                    pushInt(numList, key);
-                    numList.add(new InsnNode(Opcodes.IXOR));
+                    InsnList numList = obfuscateNumber(val);
 
                     iterator.remove();
                     AbstractInsnNode nextNode = iterator.hasNext() ? iterator.next() : null;
@@ -249,13 +327,7 @@ public class ObfuscationMethodVisitor extends MethodNode {
                 }
             } else if (insn.getOpcode() == Opcodes.BIPUSH || insn.getOpcode() == Opcodes.SIPUSH) {
                 int val = ((IntInsnNode) insn).operand;
-                int key = java.util.concurrent.ThreadLocalRandom.current().nextInt();
-                int xored = val ^ key;
-
-                InsnList numList = new InsnList();
-                pushInt(numList, xored);
-                pushInt(numList, key);
-                numList.add(new InsnNode(Opcodes.IXOR));
+                InsnList numList = obfuscateNumber(val);
 
                 iterator.remove();
                 AbstractInsnNode nextNode = iterator.hasNext() ? iterator.next() : null;
@@ -267,13 +339,7 @@ public class ObfuscationMethodVisitor extends MethodNode {
                 }
             } else if (insn.getOpcode() >= Opcodes.ICONST_M1 && insn.getOpcode() <= Opcodes.ICONST_5) {
                 int val = insn.getOpcode() - Opcodes.ICONST_0;
-                int key = java.util.concurrent.ThreadLocalRandom.current().nextInt();
-                int xored = val ^ key;
-
-                InsnList numList = new InsnList();
-                pushInt(numList, xored);
-                pushInt(numList, key);
-                numList.add(new InsnNode(Opcodes.IXOR));
+                InsnList numList = obfuscateNumber(val);
 
                 iterator.remove();
                 AbstractInsnNode nextNode = iterator.hasNext() ? iterator.next() : null;
@@ -628,12 +694,50 @@ public class ObfuscationMethodVisitor extends MethodNode {
         }
 
         // Fake code if predicate is false (which it never is)
-        opaqueList.add(new InsnNode(Opcodes.ACONST_NULL));
+        opaqueList.add(new TypeInsnNode(Opcodes.NEW, "java/lang/VerifyError"));
+        opaqueList.add(new InsnNode(Opcodes.DUP));
+        opaqueList.add(new MethodInsnNode(Opcodes.INVOKESPECIAL, "java/lang/VerifyError", "<init>", "()V", false));
         opaqueList.add(new InsnNode(Opcodes.ATHROW));
 
         opaqueList.add(trueLabel);
 
         instructions.insertBefore(insn, opaqueList);
+    }
+
+    private InsnList obfuscateNumber(int val) {
+        InsnList numList = new InsnList();
+        int strategy = java.util.concurrent.ThreadLocalRandom.current().nextInt(3);
+
+        if (strategy == 0) {
+            // Strategy 0: val ^ key
+            int key = java.util.concurrent.ThreadLocalRandom.current().nextInt();
+            int xored = val ^ key;
+            pushInt(numList, xored);
+            pushInt(numList, key);
+            numList.add(new InsnNode(Opcodes.IXOR));
+        } else if (strategy == 1) {
+            // Strategy 1: ~(val ^ key)
+            int key = java.util.concurrent.ThreadLocalRandom.current().nextInt();
+            int xoredAndInverted = ~(val ^ key);
+            pushInt(numList, xoredAndInverted);
+            numList.add(new InsnNode(Opcodes.ICONST_M1));
+            numList.add(new InsnNode(Opcodes.IXOR)); // inverts it back to (val ^ key)
+            pushInt(numList, key);
+            numList.add(new InsnNode(Opcodes.IXOR)); // (val ^ key) ^ key = val
+        } else {
+            // Strategy 2: (val - key1) ^ key2
+            int key1 = java.util.concurrent.ThreadLocalRandom.current().nextInt();
+            int key2 = java.util.concurrent.ThreadLocalRandom.current().nextInt();
+            int obfuscated = (val - key1) ^ key2;
+
+            pushInt(numList, obfuscated);
+            pushInt(numList, key2);
+            numList.add(new InsnNode(Opcodes.IXOR)); // yields (val - key1)
+            pushInt(numList, key1);
+            numList.add(new InsnNode(Opcodes.IADD)); // yields val
+        }
+
+        return numList;
     }
 
     private void pushInt(InsnList list, int value) {
@@ -716,6 +820,16 @@ public class ObfuscationMethodVisitor extends MethodNode {
                 vmCode.add((byte) 0x07); // OR
             } else if (opcode == Opcodes.IXOR) {
                 vmCode.add((byte) 0x08); // XOR
+            } else if (opcode == Opcodes.IDIV) {
+                vmCode.add((byte) 0x09); // DIV
+            } else if (opcode == Opcodes.IREM) {
+                vmCode.add((byte) 0x0A); // REM
+            } else if (opcode == Opcodes.ISHL) {
+                vmCode.add((byte) 0x0B); // SHL
+            } else if (opcode == Opcodes.ISHR) {
+                vmCode.add((byte) 0x0C); // SHR
+            } else if (opcode == Opcodes.IUSHR) {
+                vmCode.add((byte) 0x0D); // USHR
             } else {
                 // Unsupported opcode for our simple VM
                 return false;
@@ -931,12 +1045,18 @@ public class ObfuscationMethodVisitor extends MethodNode {
                 if (op != Opcodes.IRETURN && op != Opcodes.RETURN && op != Opcodes.ARETURN && op != Opcodes.LRETURN && op != Opcodes.DRETURN && op != Opcodes.ATHROW) {
 
                     int nextState = states[i + 1];
-                    int xorKey = java.util.concurrent.ThreadLocalRandom.current().nextInt(1, 10000);
-                    int xoredState = nextState ^ xorKey;
+                    int key = java.util.concurrent.ThreadLocalRandom.current().nextInt(1, 10000);
+                    int offset = java.util.concurrent.ThreadLocalRandom.current().nextInt(1, 10000);
 
-                    pushInt(instructions, xoredState);
-                    pushInt(instructions, xorKey);
+                    // Complex transition: nextState = (obfuscatedVal ^ key) - offset
+                    // Thus, obfuscatedVal = (nextState + offset) ^ key
+                    int obfuscatedVal = (nextState + offset) ^ key;
+
+                    pushInt(instructions, obfuscatedVal);
+                    pushInt(instructions, key);
                     instructions.add(new InsnNode(Opcodes.IXOR));
+                    pushInt(instructions, offset);
+                    instructions.add(new InsnNode(Opcodes.ISUB));
 
                     instructions.add(new VarInsnNode(Opcodes.ISTORE, stateLocal));
                     instructions.add(new JumpInsnNode(Opcodes.GOTO, loopStart));
