@@ -39,11 +39,11 @@ public class VirtualMachine {
     /**
      * Executes the given custom bytecode.
      * @param bytecode The byte array representing the instructions to execute.
+     * @param locals The initial local variables (arguments).
      * @return The result of the execution.
      */
-    public static int execute(byte[] bytecode) {
+    public static int execute(byte[] bytecode, int[] locals) {
         int[] stack = new int[64];
-        int[] locals = new int[64];
         int sp = 0;
         int pc = 0;
 
