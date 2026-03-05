@@ -45,11 +45,11 @@
 ## 4. 混淆类随机化与加固
 - [x] 代理类内部逻辑多样化
   - [x] 随机挑选异或算法或多重 Base64 算法生成还原方法 (StringProxyGenerator)
-  - [ ] 为其他代理类引入逻辑随机化
+  - [ ] 为其他代理类引入逻辑随机化 (ClassCreation, Method, Field, ControlFlow)
 - [ ] 反射与 MethodHandle 混合使用
-  - [ ] 在代理类中随机使用传统 Reflection 或 JDK 7+ MethodHandle 调用目标方法
+  - [ ] 在代理类中随机使用传统 Reflection 或 JDK 7+ MethodHandle 调用目标方法 (MethodProxy, FieldProxy, ClassCreationProxy)
 - [ ] 无效死代码与花指令生成
-  - [ ] 在生成的代理类内插入对运行结果无影响的复杂算术运算和条件分支
+  - [ ] 在生成的代理类内插入对运行结果无影响的复杂算术运算和条件分支 (ControlFlowProxy 等)
 
 ## 5. 测试验证模块
 - [x] 编写测试用例验证代理类的生成与运行正确性

@@ -19,7 +19,7 @@ public class FieldProxyGeneratorTest {
         assertTrue(result.contains("public static void set(Object target, Object value)"));
         assertTrue(result.contains("Class.forName(\"java.awt.Point\")"));
         assertTrue(result.contains("getDeclaredField(\"x\")"));
-        assertTrue(result.contains("field.get(target)"));
-        assertTrue(result.contains("field.set(target, value)"));
+        assertTrue(result.contains("field.get(target)") || result.contains("mh.invoke(target)"));
+        assertTrue(result.contains("field.set(target, value)") || result.contains("mh.invoke(target, value)"));
     }
 }
