@@ -1,0 +1,79 @@
+--- src/main/java/com/obfuscator/engine/ObfuscationMethodVisitor.java
++++ src/main/java/com/obfuscator/engine/ObfuscationMethodVisitor.java
+@@ -535,6 +535,76 @@
+         return true;
+     }
+
++    private void shuffleBlocks() {
++        if (instructions.size() < 10) return;
++        if (!tryCatchBlocks.isEmpty()) return;
++
++        java.util.List<InsnList> blocks = new java.util.ArrayList<>();
++        InsnList currentBlock = new InsnList();
++        LabelNode currentLabel = new LabelNode();
++        currentBlock.add(currentLabel);
++
++        for (AbstractInsnNode node : instructions) {
++            instructions.remove(node);
++
++            if (node instanceof LabelNode) {
++                if (currentBlock.size() > 1) {
++                    blocks.add(currentBlock);
++                } else {
++                    blocks.add(currentBlock);
++                }
++                currentBlock = new InsnList();
++                currentLabel = (LabelNode) node;
++                currentBlock.add(currentLabel);
++            } else {
++                currentBlock.add(node);
++                int op = node.getOpcode();
++                if (op == Opcodes.GOTO || op == Opcodes.IRETURN || op == Opcodes.RETURN ||
++                    op == Opcodes.ARETURN || op == Opcodes.LRETURN || op == Opcodes.DRETURN ||
++                    op == Opcodes.ATHROW || (node instanceof JumpInsnNode) ||
++                    node instanceof LookupSwitchInsnNode || node instanceof TableSwitchInsnNode) {
++
++                    blocks.add(currentBlock);
++                    currentBlock = new InsnList();
++                    currentLabel = new LabelNode();
++                    currentBlock.add(currentLabel);
++                }
++            }
++        }
++        if (currentBlock.size() > 0) {
++            blocks.add(currentBlock);
++        }
++
++        if (blocks.size() <= 1) {
++            for (InsnList b : blocks) {
++                instructions.add(b);
++            }
++            return;
++        }
++
++        for (int i = 0; i < blocks.size() - 1; i++) {
++            InsnList b = blocks.get(i);
++            AbstractInsnNode last = b.getLast();
++            if (last != null) {
++                int op = last.getOpcode();
++                if (op != Opcodes.GOTO && op != Opcodes.IRETURN && op != Opcodes.RETURN &&
++                    op != Opcodes.ARETURN && op != Opcodes.LRETURN && op != Opcodes.DRETURN &&
++                    op != Opcodes.ATHROW && !(last instanceof LookupSwitchInsnNode) &&
++                    !(last instanceof TableSwitchInsnNode)) {
++                    LabelNode nextLabel = (LabelNode) blocks.get(i + 1).getFirst();
++                    b.add(new JumpInsnNode(Opcodes.GOTO, nextLabel));
++                }
++            }
++        }
++
++        InsnList firstBlock = blocks.remove(0);
++        java.util.Collections.shuffle(blocks, java.util.concurrent.ThreadLocalRandom.current());
++        instructions.add(firstBlock);
++        for (InsnList b : blocks) {
++            instructions.add(b);
++        }
++    }
++
+     private void flattenControlFlow() {
+         // Find maximum local variables index so we can allocate a variable for the state
+         int tempVarIndex = maxLocals;

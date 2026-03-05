@@ -1,0 +1,13 @@
+--- src/main/java/com/obfuscator/engine/ObfuscationMethodVisitor.java
++++ src/main/java/com/obfuscator/engine/ObfuscationMethodVisitor.java
+@@ -36,6 +36,10 @@
+                 return;
+             }
+             flattenControlFlow();
++
++            // After flattening and virtualizing, we can also perform block shuffling
++            // for any methods that are not strictly flattened but still have blocks
++            shuffleBlocks();
+         }
+
+         ListIterator<AbstractInsnNode> iterator = instructions.iterator();

@@ -34,10 +34,6 @@ public class ObfuscationMethodVisitor extends MethodNode {
                 return;
             }
             flattenControlFlow();
-
-            // After flattening and virtualizing, we can also perform block shuffling
-            // for any methods that are not strictly flattened but still have blocks
-            shuffleBlocks();
         }
 
         ListIterator<AbstractInsnNode> iterator = instructions.iterator();
