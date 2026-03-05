@@ -473,15 +473,34 @@ public class ObfuscationMethodVisitor extends MethodNode {
         InsnList opaqueList = new InsnList();
         LabelNode trueLabel = new LabelNode();
 
-        // 7 * 7 % 2 != 0 (which is 49 % 2 == 1 -> != 0, so it's always true)
-        opaqueList.add(new IntInsnNode(Opcodes.BIPUSH, 7));
-        opaqueList.add(new IntInsnNode(Opcodes.BIPUSH, 7));
-        opaqueList.add(new InsnNode(Opcodes.IMUL)); // 49
-        opaqueList.add(new InsnNode(Opcodes.ICONST_2)); // 2
-        opaqueList.add(new InsnNode(Opcodes.IREM)); // 49 % 2 = 1
+        int choice = java.util.concurrent.ThreadLocalRandom.current().nextInt(3);
+        int randVal = java.util.concurrent.ThreadLocalRandom.current().nextInt(10, 100);
 
-        // IFNE trueLabel (if 1 != 0, goto trueLabel)
-        opaqueList.add(new JumpInsnNode(Opcodes.IFNE, trueLabel));
+        if (choice == 0) {
+            // 7 * 7 % 2 != 0
+            pushInt(opaqueList, 7);
+            pushInt(opaqueList, 7);
+            opaqueList.add(new InsnNode(Opcodes.IMUL));
+            pushInt(opaqueList, 2);
+            opaqueList.add(new InsnNode(Opcodes.IREM));
+            opaqueList.add(new JumpInsnNode(Opcodes.IFNE, trueLabel));
+        } else if (choice == 1) {
+            // (x * x + x) % 2 == 0
+            pushInt(opaqueList, randVal);
+            opaqueList.add(new InsnNode(Opcodes.DUP));
+            opaqueList.add(new InsnNode(Opcodes.IMUL));
+            pushInt(opaqueList, randVal);
+            opaqueList.add(new InsnNode(Opcodes.IADD));
+            pushInt(opaqueList, 2);
+            opaqueList.add(new InsnNode(Opcodes.IREM));
+            opaqueList.add(new JumpInsnNode(Opcodes.IFEQ, trueLabel));
+        } else {
+            // (x * 0) == 0
+            pushInt(opaqueList, randVal);
+            pushInt(opaqueList, 0);
+            opaqueList.add(new InsnNode(Opcodes.IMUL));
+            opaqueList.add(new JumpInsnNode(Opcodes.IFEQ, trueLabel));
+        }
 
         // Fake code if predicate is false (which it never is)
         opaqueList.add(new InsnNode(Opcodes.ACONST_NULL));
@@ -560,28 +579,90 @@ public class ObfuscationMethodVisitor extends MethodNode {
 
         LabelNode loopStart = new LabelNode();
         LabelNode loopEnd = new LabelNode();
-        LabelNode case1 = new LabelNode();
-        LabelNode case2 = new LabelNode();
+        LabelNode case1 = new LabelNode(); // Trampoline 1
+        LabelNode case2 = new LabelNode(); // Trampoline 2
+        LabelNode case3 = new LabelNode(); // Trampoline 3
+        LabelNode case4 = new LabelNode(); // The actual method code
         LabelNode defaultCase = new LabelNode();
 
+        int state1;
+        int state2;
+        int state3;
+        int state4;
+
+        while (true) {
+            int seed = java.util.concurrent.ThreadLocalRandom.current().nextInt(100, 1000);
+            state1 = seed;
+            state2 = (state1 ^ 0x5a) + 0x11;
+            state3 = (state2 ^ 0xc3) - 0x05;
+            state4 = (state3 ^ 0x0f) + 0x22;
+
+            if (state1 != state2 && state1 != state3 && state1 != state4 &&
+                state2 != state3 && state2 != state4 &&
+                state3 != state4) {
+                break;
+            }
+        }
+
         InsnList prelude = new InsnList();
-        prelude.add(new InsnNode(Opcodes.ICONST_1));
+        pushInt(prelude, state1);
         prelude.add(new VarInsnNode(Opcodes.ISTORE, stateLocal));
         prelude.add(loopStart);
         prelude.add(new VarInsnNode(Opcodes.ILOAD, stateLocal));
 
-        // table switch
-        LabelNode[] handlers = new LabelNode[] { case1, case2 };
-        prelude.add(new TableSwitchInsnNode(1, 2, defaultCase, handlers));
+        // lookup switch with randomized values
+        int[] keys = new int[] { state1, state2, state3, state4 };
+        LabelNode[] handlers = new LabelNode[] { case1, case2, case3, case4 };
 
-        // Case 1: Just increment state to 2
+        // Sort keys and handlers for LookupSwitchInsnNode
+        for (int i = 0; i < keys.length - 1; i++) {
+            for (int j = 0; j < keys.length - i - 1; j++) {
+                if (keys[j] > keys[j + 1]) {
+                    int tempKey = keys[j];
+                    keys[j] = keys[j + 1];
+                    keys[j + 1] = tempKey;
+
+                    LabelNode tempHandler = handlers[j];
+                    handlers[j] = handlers[j + 1];
+                    handlers[j + 1] = tempHandler;
+                }
+            }
+        }
+
+        prelude.add(new LookupSwitchInsnNode(defaultCase, keys, handlers));
+
+        // Case 1: Transition to state2
         prelude.add(case1);
-        prelude.add(new InsnNode(Opcodes.ICONST_2));
+        prelude.add(new VarInsnNode(Opcodes.ILOAD, stateLocal));
+        pushInt(prelude, 0x5a);
+        prelude.add(new InsnNode(Opcodes.IXOR));
+        pushInt(prelude, 0x11);
+        prelude.add(new InsnNode(Opcodes.IADD));
         prelude.add(new VarInsnNode(Opcodes.ISTORE, stateLocal));
         prelude.add(new JumpInsnNode(Opcodes.GOTO, loopStart));
 
-        // Case 2: The actual method code
+        // Case 2: Transition to state3
         prelude.add(case2);
+        prelude.add(new VarInsnNode(Opcodes.ILOAD, stateLocal));
+        pushInt(prelude, 0xc3);
+        prelude.add(new InsnNode(Opcodes.IXOR));
+        pushInt(prelude, 0x05);
+        prelude.add(new InsnNode(Opcodes.ISUB));
+        prelude.add(new VarInsnNode(Opcodes.ISTORE, stateLocal));
+        prelude.add(new JumpInsnNode(Opcodes.GOTO, loopStart));
+
+        // Case 3: Transition to state4
+        prelude.add(case3);
+        prelude.add(new VarInsnNode(Opcodes.ILOAD, stateLocal));
+        pushInt(prelude, 0x0f);
+        prelude.add(new InsnNode(Opcodes.IXOR));
+        pushInt(prelude, 0x22);
+        prelude.add(new InsnNode(Opcodes.IADD));
+        prelude.add(new VarInsnNode(Opcodes.ISTORE, stateLocal));
+        prelude.add(new JumpInsnNode(Opcodes.GOTO, loopStart));
+
+        // Case 4: The actual method code
+        prelude.add(case4);
 
         instructions.insert(prelude);
 
