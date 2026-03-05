@@ -108,6 +108,85 @@ public class JarBytecodeEngineTest {
     }
 
     @Test
+    public void testExceptionControlFlowObfuscationInJar() throws Exception {
+        File tempInputJar = File.createTempFile("test-input-ecf", ".jar");
+        tempInputJar.deleteOnExit();
+
+        File tempOutputJar = File.createTempFile("test-output-ecf", ".jar");
+        tempOutputJar.deleteOnExit();
+
+        String testClassName = "ExceptionControlFlowTestClass";
+        String testSource = "public class ExceptionControlFlowTestClass {\n" +
+                            "    public int testMethod() {\n" +
+                            "        int x = 5;\n" +
+                            "        int y = 10;\n" +
+                            "        return x + y;\n" +
+                            "    }\n" +
+                            "}";
+
+        InMemoryCompiler compiler = new InMemoryCompiler();
+        compiler.compile(testClassName, testSource);
+        byte[] testClassBytes = compiler.getCompiledClasses().get(testClassName);
+
+        try (JarOutputStream jos = new JarOutputStream(new FileOutputStream(tempInputJar))) {
+            jos.putNextEntry(new JarEntry(testClassName + ".class"));
+            jos.write(testClassBytes);
+            jos.closeEntry();
+        }
+
+        JarBytecodeEngine engine = new JarBytecodeEngine();
+        engine.process(tempInputJar, tempOutputJar);
+
+        boolean foundFakeException = false;
+        boolean hasTryCatchBlock = false;
+
+        try (JarFile jarFile = new JarFile(tempOutputJar)) {
+            Enumeration<JarEntry> entries = jarFile.entries();
+            while (entries.hasMoreElements()) {
+                JarEntry entry = entries.nextElement();
+                String name = entry.getName();
+                if (name.equals(testClassName + ".class")) {
+                    byte[] classBytes = readAllBytes(jarFile.getInputStream(entry));
+
+                    org.objectweb.asm.ClassReader cr = new org.objectweb.asm.ClassReader(classBytes);
+                    org.objectweb.asm.tree.ClassNode cn = new org.objectweb.asm.tree.ClassNode();
+                    cr.accept(cn, 0);
+
+                    for (org.objectweb.asm.tree.MethodNode method : cn.methods) {
+                        if (method.name.equals("testMethod")) {
+                            if (!method.tryCatchBlocks.isEmpty()) {
+                                hasTryCatchBlock = true;
+                            }
+
+                            java.util.ListIterator<org.objectweb.asm.tree.AbstractInsnNode> iterator = method.instructions.iterator();
+                            while (iterator.hasNext()) {
+                                org.objectweb.asm.tree.AbstractInsnNode insn = iterator.next();
+                                if (insn instanceof org.objectweb.asm.tree.LdcInsnNode) {
+                                    Object cst = ((org.objectweb.asm.tree.LdcInsnNode) insn).cst;
+                                    if (cst instanceof String && cst.equals("Fake Exception")) {
+                                        foundFakeException = true;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        assertTrue(hasTryCatchBlock, "The obfuscated method should contain an injected try-catch block.");
+        assertTrue(foundFakeException, "The obfuscated method should contain the fake exception string literal.");
+
+        URL[] urls = {tempOutputJar.toURI().toURL()};
+        try (URLClassLoader cl = new URLClassLoader(urls)) {
+            Class<?> clazz = cl.loadClass(testClassName);
+            Object instance = clazz.getDeclaredConstructor().newInstance();
+            int result = (int) clazz.getMethod("testMethod").invoke(instance);
+            assertEquals(15, result, "The method should still return the correct result despite the fake exception control flow.");
+        }
+    }
+
+    @Test
     public void testControlFlowObfuscation() throws Exception {
         File tempInputJar = File.createTempFile("test-input-cf", ".jar");
         tempInputJar.deleteOnExit();
