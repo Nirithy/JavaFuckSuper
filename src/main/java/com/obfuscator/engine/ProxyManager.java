@@ -24,7 +24,10 @@ public class ProxyManager {
     private final com.obfuscator.generator.ClassCreationProxyGenerator classCreationProxyGenerator = new com.obfuscator.generator.ClassCreationProxyGenerator();
     private final com.obfuscator.generator.FieldProxyGenerator fieldProxyGenerator = new com.obfuscator.generator.FieldProxyGenerator();
     private final com.obfuscator.generator.ControlFlowProxyGenerator controlFlowProxyGenerator = new com.obfuscator.generator.ControlFlowProxyGenerator();
+    private final com.obfuscator.generator.AntiDebugProxyGenerator antiDebugProxyGenerator = new com.obfuscator.generator.AntiDebugProxyGenerator();
     private final InMemoryCompiler compiler = new InMemoryCompiler();
+
+    private volatile String antiDebugProxyName = null;
 
     /**
      * Retrieves or generates a String proxy for the given string value.
@@ -113,6 +116,23 @@ public class ProxyManager {
             compiler.compile(proxyName, sourceCode);
             return proxyName;
         });
+    }
+
+    /**
+     * Retrieves or generates the AntiDebug proxy. There is only one per application.
+     * @return The dynamically generated class name of the AntiDebug proxy.
+     */
+    public String getAntiDebugProxy() {
+        if (antiDebugProxyName == null) {
+            synchronized (this) {
+                if (antiDebugProxyName == null) {
+                    antiDebugProxyName = DynamicNameGenerator.generate();
+                    String sourceCode = (String) antiDebugProxyGenerator.generate(antiDebugProxyName, null);
+                    compiler.compile(antiDebugProxyName, sourceCode);
+                }
+            }
+        }
+        return antiDebugProxyName;
     }
 
     public Map<String, byte[]> getCompiledProxies() {

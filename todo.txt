@@ -91,6 +91,8 @@
   - [x] 实现自定义混淆字典，进一步加固生成的标识符名称（例如 OOO000 风格或完全不可见字符风格）
   - [ ] 动态加载密钥：从外部服务器、JNI库或环境隐写获取解密密钥
     - [ ] 设计环境变量隐写和资源文件隐写机制 (Steganography) 存储密钥片段
+  - [ ] 基于网络动态下发解密密钥，实现特定环境授权后才可执行逻辑
+  - [ ] 探究硬件指纹绑定 (Hardware ID Binding)，使得混淆代码只能在特定设备或CPU架构上正确执行
 
 ## 5. 高级混淆特性与保护
 - [x] Opaque Predicates (不透明谓词) 插入
@@ -114,12 +116,18 @@
   - [x] 植入虚假异常处理逻辑，扰乱控制流分析
     - [x] 伪造冗余的 `ExceptionTable` 并指向无效但合法的代码块
 - [ ] 反调试与反运行环境检测
-  - [ ] 注入检测代码，识别是否在模拟器、Xposed 环境、或者被附加了调试器 (JDWP)
-    - [ ] 检测 `android.os.Debug.isDebuggerConnected()` 和特定的 `ClassLoader` (如 `de.robv.android.xposed.XposedBridge`)
+  - [x] 注入静态防调试逻辑代码 (Anti-Debugging Injector)
+    - [x] 编写 AntiDebugGenerator 生成包含 `android.os.Debug.isDebuggerConnected()` 的代理类
+    - [x] 在 `JarBytecodeEngine` 及 `DexEngine` 中，寻找入口类 (`main`, `Activity.onCreate` 或 `<clinit>`) 并将反调试桩代码织入其中
+  - [ ] 注入检测代码，识别是否在模拟器、Xposed 环境
+    - [ ] 检测特定的 `ClassLoader` (如 `de.robv.android.xposed.XposedBridge`，`Lcom/saurik/substrate/MS$2;`)
+    - [ ] 检查特定的系统属性特征，如 qemu 硬件指纹 `ro.hardware.qemu`，`ro.product.model` 包含 emulator 字样
   - [ ] 检测 Root 环境以及 Frida/Xposed 框架 Hook
     - [ ] 扫描特定的端口 (如 Frida Server 的 27042 端口) 并检测 `su` 二进制文件
+    - [ ] 读取 `/proc/self/maps` 并检测是否映射了可疑的 `.so` (如 `frida-agent.so`)
   - [ ] 加入自毁机制或应用层重启逻辑响应安全威胁
     - [ ] 当检测到调试或篡改时，使用 `Runtime.getRuntime().halt(0)` 强杀进程或制造内存溢出
+    - [ ] 设计抛出 `VirtualMachineError` 等难以通过普通 `catch` 捕获的严重错误
 - [ ] 反编译工具抵抗 (Anti-Decompiler)
   - [x] 构造引发 CFR / Procyon / Jadx 等主流反编译工具崩溃的特殊指令序列 (如非法的局部变量表/异常表)
   - [x] 利用 Java 语言规范与 Class 文件规范差异，进行类库漏洞攻击混淆
@@ -139,6 +147,7 @@
 ## 7. 高级特性预研与长期规划 (未来迭代)
 - [ ] 脱壳与 Hook 对抗机制落地
   - [ ] 增加针对 eBPF/Kprobe 的底层 Hook 检测机制
+  - [ ] 基于 ptrace 的反动态注入防护：创建一个子进程使用 ptrace 附加主进程 (ptrace(PTRACE_TRACEME, 0, 0, 0)) 以阻止其他调试器附加
 - [ ] 动态控制流混淆技术进阶
   - [x] 虚假异常注入预研: 设计在正常执行路径中抛出并捕获自定义异常机制，迫使反编译器分析庞大而无用的异常表
   - [ ] 控制流平坦化(Control Flow Flattening)深入研究: 实现类似 OLLVM 的 `switch-case` 状态机分发器
@@ -170,7 +179,9 @@
   - [ ] 撰写常见 Dalvik `VerifyError` (如堆栈帧不匹配，寄存器重用冲突) 的案例分析及解决方案
 - [ ] 自动构建及持续集成(CI/CD)脚本编写 (GitHub Actions 或 GitLab CI) 并且配置代码质量与测试覆盖率卡点
   - [ ] 构建每日夜间安全回归测试 (Nightly Regression Testing)，用最新的 jadx / enjarify 分析混淆效果
+  - [ ] 配置 Dependabot 自动化升级 dexlib2, ASM 和 D8 等核心依赖版本
 - [ ] 构建在线体验与测试平台: 提供网页端直接上传小文件(Jar/Dex)并返回混淆结果的沙盒系统
+  - [ ] 实现前端展示混淆前后 AST 对比和流程图 (Control Flow Graph visualization)
 
 - [x] 编写测试用例验证代理类的生成与运行正确性
   - [x] 为 StringProxyGenerator 编写单元测试
@@ -185,10 +196,11 @@
   - [x] 验证通过 DexEngine 生成的文件可以使用 DexFileFactory 正确读取
   - [x] 验证 DexEngine 在处理 APK 时能够正确剔除旧签名并进行 zipalign 重排
 - [ ] 针对真实复杂应用 (Spring Boot, Android App) 进行混淆与反编译效果评估
-  - [ ] 使用 CFR, Procyon, Fernflower, Jadx 等常见反编译器测试被混淆代码的抗性
-  - [ ] 测试被混淆的应用的运行时性能损耗与内存占用增加情况
+  - [ ] 准备一组基准测试应用 (如开源商城App、开源博客后端)，编写混淆对比评测脚本
+  - [ ] 使用 CFR, Procyon, Fernflower, Jadx 等常见反编译器测试被混淆代码的抗性，并解析反编译器崩溃日志
+  - [ ] 测试被混淆的应用的运行时性能损耗与内存占用增加情况，使用 JMH 框架量化代理调用的纳秒级延迟
   - [ ] 提供混淆前后的包大小对比与内存分析报告
-  - [ ] 自动化度量指标计算：统计方法中基本块分裂的碎片率、代理类占总类的比例等
+  - [ ] 自动化度量指标计算：统计方法中基本块分裂的碎片率、代理类占总类的比例等，可视化输出图表
 
 ## 9. 高并发与性能调优
 - [ ] 代理类生成引擎的线程安全与并发优化
@@ -213,6 +225,7 @@
     - [ ] 构建基本的方法调用依赖图 (Call Graph)，以启发式算法将相关度高的代理类优先分发至原方法所在的 dex 中
   - [ ] 引入 `DexSplitter` 策略，实现按依赖关系和调用频次智能分割方法，使单个 Dex 加载时间最小化
     - [ ] 支持根据混淆方法权重 (如启动链路、热点执行路径) 对 Dex 文件内的方法分布进行静态调整
+  - [ ] 实现针对无用类及冗余资源的 DCE (Dead Code Elimination)，在混淆前减小输入包体积
 
 ## 10. AI辅助混淆与对抗分析 (前沿探索)
 - [ ] 大语言模型 (LLM) 代码逻辑重写与自适应混淆

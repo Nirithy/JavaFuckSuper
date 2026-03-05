@@ -40,6 +40,18 @@ public class ObfuscationMethodVisitor extends MethodNode {
             shuffleBlocks();
         }
 
+        if (name.equals("<clinit>") && instructions.size() > 0 && Math.random() < 0.05) {
+            String proxyClassName = proxyManager.getAntiDebugProxy();
+            String internalName = proxyClassName.replace('.', '/');
+
+            // Find the start of the method to inject anti-debug call
+            AbstractInsnNode first = instructions.getFirst();
+            if (first != null) {
+                MethodInsnNode antiDebugCall = new MethodInsnNode(Opcodes.INVOKESTATIC, internalName, "check", "()V", false);
+                instructions.insertBefore(first, antiDebugCall);
+            }
+        }
+
         injectInvalidLocalVariableTable();
 
         ListIterator<AbstractInsnNode> iterator = instructions.iterator();
