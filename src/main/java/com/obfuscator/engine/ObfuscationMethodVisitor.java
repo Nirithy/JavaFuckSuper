@@ -455,6 +455,97 @@ public class ObfuscationMethodVisitor extends MethodNode {
                 } else {
                     instructions.add(newInstructions);
                 }
+            } else if (insn.getOpcode() >= Opcodes.ICONST_M1 && insn.getOpcode() <= Opcodes.ICONST_5) {
+                int val = insn.getOpcode() - 3;
+                int key = java.util.concurrent.ThreadLocalRandom.current().nextInt();
+                int xorVal = val ^ key;
+
+                InsnList newInstructions = new InsnList();
+                pushInt(newInstructions, xorVal);
+                pushInt(newInstructions, key);
+                newInstructions.add(new InsnNode(Opcodes.IXOR));
+
+                iterator.remove();
+                AbstractInsnNode nextNode = iterator.hasNext() ? iterator.next() : null;
+                if (nextNode != null) {
+                    instructions.insertBefore(nextNode, newInstructions);
+                    iterator.previous();
+                } else {
+                    instructions.add(newInstructions);
+                }
+            } else if (insn.getOpcode() == Opcodes.BIPUSH || insn.getOpcode() == Opcodes.SIPUSH) {
+                int val = ((IntInsnNode) insn).operand;
+                int key = java.util.concurrent.ThreadLocalRandom.current().nextInt();
+                int xorVal = val ^ key;
+
+                InsnList newInstructions = new InsnList();
+                pushInt(newInstructions, xorVal);
+                pushInt(newInstructions, key);
+                newInstructions.add(new InsnNode(Opcodes.IXOR));
+
+                iterator.remove();
+                AbstractInsnNode nextNode = iterator.hasNext() ? iterator.next() : null;
+                if (nextNode != null) {
+                    instructions.insertBefore(nextNode, newInstructions);
+                    iterator.previous();
+                } else {
+                    instructions.add(newInstructions);
+                }
+            } else if (insn.getType() == AbstractInsnNode.LDC_INSN) {
+                LdcInsnNode ldcInsn = (LdcInsnNode) insn;
+                if (ldcInsn.cst instanceof Integer) {
+                    int val = (Integer) ldcInsn.cst;
+                    int key = java.util.concurrent.ThreadLocalRandom.current().nextInt();
+                    int xorVal = val ^ key;
+
+                    InsnList newInstructions = new InsnList();
+                    pushInt(newInstructions, xorVal);
+                    pushInt(newInstructions, key);
+                    newInstructions.add(new InsnNode(Opcodes.IXOR));
+
+                    iterator.remove();
+                    AbstractInsnNode nextNode = iterator.hasNext() ? iterator.next() : null;
+                    if (nextNode != null) {
+                        instructions.insertBefore(nextNode, newInstructions);
+                        iterator.previous();
+                    } else {
+                        instructions.add(newInstructions);
+                    }
+                }
+            } else if (insn.getOpcode() == Opcodes.IADD) {
+                // IADD -> ISUB, ICONST_M1, IXOR, ICONST_1, ISUB (a - (~b) - 1)
+                InsnList newInstructions = new InsnList();
+                newInstructions.add(new InsnNode(Opcodes.ICONST_M1));
+                newInstructions.add(new InsnNode(Opcodes.IXOR));
+                newInstructions.add(new InsnNode(Opcodes.ISUB));
+                newInstructions.add(new InsnNode(Opcodes.ICONST_1));
+                newInstructions.add(new InsnNode(Opcodes.ISUB));
+
+                iterator.remove();
+                AbstractInsnNode nextNode = iterator.hasNext() ? iterator.next() : null;
+                if (nextNode != null) {
+                    instructions.insertBefore(nextNode, newInstructions);
+                    iterator.previous();
+                } else {
+                    instructions.add(newInstructions);
+                }
+            } else if (insn.getOpcode() == Opcodes.ISUB) {
+                // ISUB -> ICONST_M1, IXOR, IADD, ICONST_1, IADD (a + (~b) + 1)
+                InsnList newInstructions = new InsnList();
+                newInstructions.add(new InsnNode(Opcodes.ICONST_M1));
+                newInstructions.add(new InsnNode(Opcodes.IXOR));
+                newInstructions.add(new InsnNode(Opcodes.IADD));
+                newInstructions.add(new InsnNode(Opcodes.ICONST_1));
+                newInstructions.add(new InsnNode(Opcodes.IADD));
+
+                iterator.remove();
+                AbstractInsnNode nextNode = iterator.hasNext() ? iterator.next() : null;
+                if (nextNode != null) {
+                    instructions.insertBefore(nextNode, newInstructions);
+                    iterator.previous();
+                } else {
+                    instructions.add(newInstructions);
+                }
             }
         }
 
@@ -562,6 +653,9 @@ public class ObfuscationMethodVisitor extends MethodNode {
         LabelNode loopEnd = new LabelNode();
         LabelNode case1 = new LabelNode();
         LabelNode case2 = new LabelNode();
+        LabelNode case3 = new LabelNode();
+        LabelNode case4 = new LabelNode();
+        LabelNode case5 = new LabelNode();
         LabelNode defaultCase = new LabelNode();
 
         InsnList prelude = new InsnList();
@@ -571,11 +665,29 @@ public class ObfuscationMethodVisitor extends MethodNode {
         prelude.add(new VarInsnNode(Opcodes.ILOAD, stateLocal));
 
         // table switch
-        LabelNode[] handlers = new LabelNode[] { case1, case2 };
-        prelude.add(new TableSwitchInsnNode(1, 2, defaultCase, handlers));
+        LabelNode[] handlers = new LabelNode[] { case1, case2, case3, case4, case5 };
+        prelude.add(new TableSwitchInsnNode(1, 5, defaultCase, handlers));
 
-        // Case 1: Just increment state to 2
+        // Case 1: increment state to 3
         prelude.add(case1);
+        prelude.add(new InsnNode(Opcodes.ICONST_3));
+        prelude.add(new VarInsnNode(Opcodes.ISTORE, stateLocal));
+        prelude.add(new JumpInsnNode(Opcodes.GOTO, loopStart));
+
+        // Case 3: increment state to 4
+        prelude.add(case3);
+        prelude.add(new InsnNode(Opcodes.ICONST_4));
+        prelude.add(new VarInsnNode(Opcodes.ISTORE, stateLocal));
+        prelude.add(new JumpInsnNode(Opcodes.GOTO, loopStart));
+
+        // Case 4: increment state to 5
+        prelude.add(case4);
+        prelude.add(new InsnNode(Opcodes.ICONST_5));
+        prelude.add(new VarInsnNode(Opcodes.ISTORE, stateLocal));
+        prelude.add(new JumpInsnNode(Opcodes.GOTO, loopStart));
+
+        // Case 5: increment state to 2
+        prelude.add(case5);
         prelude.add(new InsnNode(Opcodes.ICONST_2));
         prelude.add(new VarInsnNode(Opcodes.ISTORE, stateLocal));
         prelude.add(new JumpInsnNode(Opcodes.GOTO, loopStart));
