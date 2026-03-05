@@ -451,6 +451,99 @@ public class JarBytecodeEngineTest {
         }
     }
 
+    @Test
+    public void testMixedPrimitiveTypes() throws Exception {
+        // 1. Compile dummy Java code
+        String testClassName = "MixedPrimitiveTestClass";
+        String testSource = "public class MixedPrimitiveTestClass {\n" +
+                "    public static double calculate(byte b, short s, int i, long l, float f, double d) {\n" +
+                "        return (b + s) * i - l + (f / d);\n" +
+                "    }\n" +
+                "}";
+
+        InMemoryCompiler compiler = new InMemoryCompiler();
+        compiler.compile(testClassName, testSource);
+        byte[] testClassBytes = compiler.getCompiledClasses().get(testClassName);
+
+        File tempDir = Files.createTempDirectory("jar-test-mixed").toFile();
+        tempDir.deleteOnExit();
+
+        File inputJar = new File(tempDir, "in.jar");
+        try (JarOutputStream jos = new JarOutputStream(new FileOutputStream(inputJar))) {
+            jos.putNextEntry(new ZipEntry(testClassName + ".class"));
+            jos.write(testClassBytes);
+            jos.closeEntry();
+        }
+
+        // 2. Obfuscate
+        File outputJar = new File(tempDir, "out.jar");
+        JarBytecodeEngine engine = new JarBytecodeEngine();
+        engine.process(inputJar, outputJar);
+
+        // 3. Test run the obfuscated code
+        URL[] urls = {outputJar.toURI().toURL()};
+        try (URLClassLoader cl = new URLClassLoader(urls)) {
+            Class<?> clazz = cl.loadClass(testClassName);
+            java.lang.reflect.Method method = clazz.getMethod("calculate", byte.class, short.class, int.class, long.class, float.class, double.class);
+            Object result = method.invoke(null, (byte) 10, (short) 20, 30, 40L, 50.0f, 2.0);
+
+            assertEquals((10 + 20) * 30 - 40L + (50.0f / 2.0), (double) result, 0.0001);
+        }
+    }
+
+    @Test
+    public void testMultiGenericsMethodCalls() throws Exception {
+        // 1. Compile dummy Java code
+        String testClassName = "MultiGenericsTestClass";
+        String testSource = "import java.util.List;\n" +
+                "import java.util.Map;\n" +
+                "import java.util.HashMap;\n" +
+                "public class MultiGenericsTestClass {\n" +
+                "    public static <T, U> int countElements(Map<T, List<U>> map) {\n" +
+                "        int count = 0;\n" +
+                "        for (List<U> list : map.values()) {\n" +
+                "            count += list.size();\n" +
+                "        }\n" +
+                "        return count;\n" +
+                "    }\n" +
+                "    public static int execute() {\n" +
+                "        Map<String, List<Integer>> map = new HashMap<>();\n" +
+                "        map.put(\"A\", java.util.Arrays.asList(1, 2, 3));\n" +
+                "        map.put(\"B\", java.util.Arrays.asList(4, 5));\n" +
+                "        return countElements(map);\n" +
+                "    }\n" +
+                "}";
+
+        InMemoryCompiler compiler = new InMemoryCompiler();
+        compiler.compile(testClassName, testSource);
+        byte[] testClassBytes = compiler.getCompiledClasses().get(testClassName);
+
+        File tempDir = Files.createTempDirectory("jar-test-generics").toFile();
+        tempDir.deleteOnExit();
+
+        File inputJar = new File(tempDir, "in.jar");
+        try (JarOutputStream jos = new JarOutputStream(new FileOutputStream(inputJar))) {
+            jos.putNextEntry(new ZipEntry(testClassName + ".class"));
+            jos.write(testClassBytes);
+            jos.closeEntry();
+        }
+
+        // 2. Obfuscate
+        File outputJar = new File(tempDir, "out.jar");
+        JarBytecodeEngine engine = new JarBytecodeEngine();
+        engine.process(inputJar, outputJar);
+
+        // 3. Test run the obfuscated code
+        URL[] urls = {outputJar.toURI().toURL()};
+        try (URLClassLoader cl = new URLClassLoader(urls)) {
+            Class<?> clazz = cl.loadClass(testClassName);
+            java.lang.reflect.Method method = clazz.getMethod("execute");
+            Object result = method.invoke(null);
+
+            assertEquals(5, result, "The obfuscated method should still return the correct element count");
+        }
+    }
+
     private byte[] readAllBytes(InputStream is) throws Exception {
         java.io.ByteArrayOutputStream buffer = new java.io.ByteArrayOutputStream();
         int nRead;

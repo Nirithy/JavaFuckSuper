@@ -472,7 +472,7 @@ public class DexEngine implements ObfuscationEngine {
                                 }
                             }
                             // Randomly inject NOP instructions to bloat the bytecode
-                            if (Math.random() < 0.1) {
+                            if (java.util.concurrent.ThreadLocalRandom.current().nextDouble() < 0.1) {
                                 toReplace.add(instruction);
                                 List<org.jf.dexlib2.builder.BuilderInstruction> newInsts = new ArrayList<>();
                                 // Add a NOP instruction
@@ -481,7 +481,7 @@ public class DexEngine implements ObfuscationEngine {
                                 newInsts.add(instruction);
                                 replacements.add(newInsts);
                                 changed = true;
-                                continue;
+                                // DO NOT USE continue here to avoid skipping field intercept!
                             }
 
                             if (instruction instanceof org.jf.dexlib2.builder.instruction.BuilderInstruction21c) {
