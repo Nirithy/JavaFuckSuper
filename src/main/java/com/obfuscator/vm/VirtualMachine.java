@@ -21,6 +21,21 @@ public class VirtualMachine {
     public static final byte OP_SHR = 0x0C;
     public static final byte OP_USHR = 0x0D;
 
+    // Local variable operations
+    public static final byte OP_LOAD = 0x0E;
+    public static final byte OP_STORE = 0x0F;
+
+    // Control flow operations
+    public static final byte OP_JMP = 0x10;
+    public static final byte OP_IFEQ = 0x11;
+    public static final byte OP_IFNE = 0x12;
+    public static final byte OP_IF_ICMPEQ = 0x13;
+    public static final byte OP_IF_ICMPNE = 0x14;
+    public static final byte OP_IF_ICMPLT = 0x15;
+    public static final byte OP_IF_ICMPGE = 0x16;
+    public static final byte OP_IF_ICMPGT = 0x17;
+    public static final byte OP_IF_ICMPLE = 0x18;
+
     /**
      * Executes the given custom bytecode.
      * @param bytecode The byte array representing the instructions to execute.
@@ -28,6 +43,7 @@ public class VirtualMachine {
      */
     public static int execute(byte[] bytecode) {
         int[] stack = new int[64];
+        int[] locals = new int[64];
         int sp = 0;
         int pc = 0;
 
@@ -98,8 +114,69 @@ public class VirtualMachine {
                     int aUshr = stack[--sp];
                     stack[sp++] = aUshr >>> bUshr;
                     break;
+                case OP_LOAD:
+                    // Read next 1 byte as local variable index
+                    int loadIndex = bytecode[pc++] & 0xFF;
+                    stack[sp++] = locals[loadIndex];
+                    break;
+                case OP_STORE:
+                    // Read next 1 byte as local variable index
+                    int storeIndex = bytecode[pc++] & 0xFF;
+                    locals[storeIndex] = stack[--sp];
+                    break;
+                case OP_JMP:
+                    // Read next 2 bytes as jump target pc
+                    int jmpTarget = ((bytecode[pc++] & 0xFF) << 8) | (bytecode[pc++] & 0xFF);
+                    pc = jmpTarget;
+                    break;
+                case OP_IFEQ:
+                    int valIfeq = stack[--sp];
+                    int targetIfeq = ((bytecode[pc++] & 0xFF) << 8) | (bytecode[pc++] & 0xFF);
+                    if (valIfeq == 0) pc = targetIfeq;
+                    break;
+                case OP_IFNE:
+                    int valIfne = stack[--sp];
+                    int targetIfne = ((bytecode[pc++] & 0xFF) << 8) | (bytecode[pc++] & 0xFF);
+                    if (valIfne != 0) pc = targetIfne;
+                    break;
+                case OP_IF_ICMPEQ:
+                    int bIcmpeq = stack[--sp];
+                    int aIcmpeq = stack[--sp];
+                    int targetIcmpeq = ((bytecode[pc++] & 0xFF) << 8) | (bytecode[pc++] & 0xFF);
+                    if (aIcmpeq == bIcmpeq) pc = targetIcmpeq;
+                    break;
+                case OP_IF_ICMPNE:
+                    int bIcmpne = stack[--sp];
+                    int aIcmpne = stack[--sp];
+                    int targetIcmpne = ((bytecode[pc++] & 0xFF) << 8) | (bytecode[pc++] & 0xFF);
+                    if (aIcmpne != bIcmpne) pc = targetIcmpne;
+                    break;
+                case OP_IF_ICMPLT:
+                    int bIcmplt = stack[--sp];
+                    int aIcmplt = stack[--sp];
+                    int targetIcmplt = ((bytecode[pc++] & 0xFF) << 8) | (bytecode[pc++] & 0xFF);
+                    if (aIcmplt < bIcmplt) pc = targetIcmplt;
+                    break;
+                case OP_IF_ICMPGE:
+                    int bIcmpge = stack[--sp];
+                    int aIcmpge = stack[--sp];
+                    int targetIcmpge = ((bytecode[pc++] & 0xFF) << 8) | (bytecode[pc++] & 0xFF);
+                    if (aIcmpge >= bIcmpge) pc = targetIcmpge;
+                    break;
+                case OP_IF_ICMPGT:
+                    int bIcmpgt = stack[--sp];
+                    int aIcmpgt = stack[--sp];
+                    int targetIcmpgt = ((bytecode[pc++] & 0xFF) << 8) | (bytecode[pc++] & 0xFF);
+                    if (aIcmpgt > bIcmpgt) pc = targetIcmpgt;
+                    break;
+                case OP_IF_ICMPLE:
+                    int bIcmple = stack[--sp];
+                    int aIcmple = stack[--sp];
+                    int targetIcmple = ((bytecode[pc++] & 0xFF) << 8) | (bytecode[pc++] & 0xFF);
+                    if (aIcmple <= bIcmple) pc = targetIcmple;
+                    break;
                 case OP_RET:
-                    return stack[--sp];
+                    return sp > 0 ? stack[--sp] : 0;
                 default:
                     throw new RuntimeException("Unknown VM opcode: " + opcode);
             }
