@@ -19,15 +19,33 @@ public class StringProxyGenerator implements ProxyGenerator {
         sb.append("    public static String get() {\n");
         sb.append(JunkCodeGenerator.generate());
 
-        double rand = Math.random();
+        // ThreadLocalRandom is used to guarantee thread safety during concurrent proxy generation
+        double rand = java.util.concurrent.ThreadLocalRandom.current().nextDouble();
         if (rand < 0.33) {
-            // Generate AES decryption logic
+            // Generate AES decryption logic with dynamic stack-based key derivation
             try {
                 javax.crypto.KeyGenerator keyGen = javax.crypto.KeyGenerator.getInstance("AES");
                 keyGen.init(128);
                 javax.crypto.SecretKey secretKey = keyGen.generateKey();
-                byte[] keyBytes = secretKey.getEncoded();
-                String keyBase64 = java.util.Base64.getEncoder().encodeToString(keyBytes);
+                byte[] originalKeyBytes = secretKey.getEncoded();
+
+                // We will obfuscate the key by XORing it with a known mask.
+                // The mask will be the hash of this proxy class's name, derived dynamically at runtime
+                // by inspecting the stack trace to find the current executing class.
+                int proxyHash = className.hashCode();
+                byte[] proxyHashBytes = new byte[] {
+                    (byte) (proxyHash >>> 24),
+                    (byte) (proxyHash >>> 16),
+                    (byte) (proxyHash >>> 8),
+                    (byte) proxyHash
+                };
+
+                byte[] obfuscatedKeyBytes = new byte[originalKeyBytes.length];
+                for (int i = 0; i < originalKeyBytes.length; i++) {
+                    obfuscatedKeyBytes[i] = (byte) (originalKeyBytes[i] ^ proxyHashBytes[i % 4]);
+                }
+
+                String keyBase64 = java.util.Base64.getEncoder().encodeToString(obfuscatedKeyBytes);
 
                 javax.crypto.Cipher cipher = javax.crypto.Cipher.getInstance("AES");
                 cipher.init(javax.crypto.Cipher.ENCRYPT_MODE, secretKey);
@@ -36,17 +54,35 @@ public class StringProxyGenerator implements ProxyGenerator {
 
                 sb.append("        try {\n");
 
-                // Dynamic Key Derivation
+                // Dynamic Key Derivation based on Stack State
                 sb.append("            String k = \"").append(keyBase64).append("\";\n");
                 sb.append("            byte[] keyBytes = java.util.Base64.getDecoder().decode(k);\n");
+
+                // Inspect stack trace to dynamically find this proxy class
+                sb.append("            StackTraceElement[] ste = Thread.currentThread().getStackTrace();\n");
+                sb.append("            String proxyClass = \"\";\n");
+                sb.append("            for (StackTraceElement e : ste) {\n");
+                sb.append("                String cName = e.getClassName();\n");
+                // The proxy class name is dynamically generated and won't be a system class
+                sb.append("                if (!cName.startsWith(\"java.\") && !cName.startsWith(\"dalvik.\") && !cName.startsWith(\"android.\")) {\n");
+                sb.append("                    proxyClass = cName;\n");
+                sb.append("                    break;\n");
+                sb.append("                }\n");
+                sb.append("            }\n");
+
+                sb.append("            int hash = proxyClass.hashCode();\n");
+                sb.append("            byte[] hashBytes = new byte[] {\n");
+                sb.append("                (byte) (hash >>> 24), (byte) (hash >>> 16), (byte) (hash >>> 8), (byte) hash\n");
+                sb.append("            };\n");
+
+                sb.append("            for (int i = 0; i < keyBytes.length; i++) {\n");
+                sb.append("                keyBytes[i] = (byte) (keyBytes[i] ^ hashBytes[i % 4]);\n");
+                sb.append("            }\n");
+
                 // Introduce dynamic runtime checks to make it slightly harder to extract the key statically
                 sb.append("            long t = System.currentTimeMillis();\n");
-                sb.append("            if (t < 0) {\n");
+                sb.append("            if (t < 0 || proxyClass.isEmpty()) {\n");
                 sb.append("                for (int i=0; i<keyBytes.length; i++) keyBytes[i] = (byte)(keyBytes[i] ^ 0x42);\n");
-                sb.append("            }\n");
-                sb.append("            StackTraceElement[] ste = Thread.currentThread().getStackTrace();\n");
-                sb.append("            if (ste.length == 0) {\n");
-                sb.append("                keyBytes[0] = 0;\n");
                 sb.append("            }\n");
 
                 sb.append("            javax.crypto.spec.SecretKeySpec secretKey = new javax.crypto.spec.SecretKeySpec(keyBytes, \"AES\");\n");
@@ -73,7 +109,7 @@ public class StringProxyGenerator implements ProxyGenerator {
             sb.append("        return new String(decoded, java.nio.charset.StandardCharsets.UTF_8);\n");
         } else {
             // Generate XOR decryption logic
-            byte key = (byte) (Math.random() * 254 + 1); // Random byte key 1-255
+            byte key = (byte) (java.util.concurrent.ThreadLocalRandom.current().nextInt(254) + 1); // Random byte key 1-255
             byte[] bytes = originalString.getBytes(java.nio.charset.StandardCharsets.UTF_8);
             StringBuilder byteString = new StringBuilder();
             byteString.append("new byte[]{");
