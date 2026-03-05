@@ -45,11 +45,12 @@ public class DexBytecodeEngineTest {
         assertTrue(tempOutputDex.exists(), "Output DEX should be created");
         assertTrue(tempOutputDex.length() > 0, "Output DEX should not be empty");
 
-        // Memory rule: The interception of NEW_INSTANCE, INVOKE_* is skipped.
-        // We verify that the DEX is syntactically valid by parsing it and ensure
-        // original instructions like INVOKE_VIRTUAL are still present.
+        // Now that INVOKE_STATIC/INVOKE_VIRTUAL is supported, we assert that the original
+        // System.gc() call (INVOKE_STATIC to java.lang.System) is replaced with our proxy.
+        // And the new instruction should still be an INVOKE_STATIC but to our proxy class.
         DexFile outDex = DexFileFactory.loadDexFile(tempOutputDex, Opcodes.getDefault());
-        boolean hasInvokeVirtual = false;
+        boolean hasProxyInvoke = false;
+        boolean hasOriginalInvoke = false;
 
         for (ClassDef classDef : outDex.getClasses()) {
             if (classDef.getType().contains("DummyDexMethodTestClass")) {
@@ -58,14 +59,23 @@ public class DexBytecodeEngineTest {
                         for (Instruction instruction : method.getImplementation().getInstructions()) {
                             if (instruction.getOpcode() == org.jf.dexlib2.Opcode.INVOKE_STATIC ||
                                 instruction.getOpcode() == org.jf.dexlib2.Opcode.INVOKE_VIRTUAL) {
-                                hasInvokeVirtual = true;
+                                org.jf.dexlib2.iface.instruction.ReferenceInstruction refInst = (org.jf.dexlib2.iface.instruction.ReferenceInstruction) instruction;
+                                org.jf.dexlib2.iface.reference.MethodReference methodRef = (org.jf.dexlib2.iface.reference.MethodReference) refInst.getReference();
+                                String owner = methodRef.getDefiningClass();
+
+                                if (owner.equals("Ljava/lang/System;") && methodRef.getName().equals("gc")) {
+                                    hasOriginalInvoke = true;
+                                } else if (!owner.startsWith("Ljava")) {
+                                    hasProxyInvoke = true; // Proxy class is dynamic
+                                }
                             }
                         }
                     }
                 }
             }
         }
-        assertTrue(hasInvokeVirtual, "INVOKE instructions should remain intact as per memory rules.");
+        assertFalse(hasOriginalInvoke, "The original method call should be removed.");
+        assertTrue(hasProxyInvoke, "A proxy method call should be inserted in place of the original method invocation.");
     }
 
     @Test
@@ -73,8 +83,15 @@ public class DexBytecodeEngineTest {
         String testClassName = "DummyDexFieldTestClass";
         String testSource = "public class DummyDexFieldTestClass {\n" +
                             "    public static String helloField = \"test\";\n" +
+                            "    public static int staticInt = 42;\n" +
+                            "    public int instanceInt = 100;\n" +
                             "    public String getField() {\n" +
                             "        return helloField;\n" +
+                            "    }\n" +
+                            "    public void setFields() {\n" +
+                            "        helloField = \"new test\";\n" +
+                            "        staticInt = 43;\n" +
+                            "        instanceInt = 101;\n" +
                             "    }\n" +
                             "}";
 
@@ -100,6 +117,8 @@ public class DexBytecodeEngineTest {
 
         DexFile outDex = DexFileFactory.loadDexFile(tempOutputDex, Opcodes.getDefault());
         boolean hasSget = false;
+        boolean hasSput = false;
+        boolean hasIput = false;
         boolean hasInvokeStatic = false;
 
         for (ClassDef classDef : outDex.getClasses()) {
@@ -107,7 +126,6 @@ public class DexBytecodeEngineTest {
                 for (Method method : classDef.getMethods()) {
                     if (method.getName().equals("getField") && method.getImplementation() != null) {
                         for (Instruction instruction : method.getImplementation().getInstructions()) {
-                            System.out.println("Instruction opcode in getField: " + instruction.getOpcode().name());
                             if (instruction.getOpcode() == org.jf.dexlib2.Opcode.SGET ||
                                 instruction.getOpcode() == org.jf.dexlib2.Opcode.SGET_OBJECT) {
                                 hasSget = true;
@@ -116,12 +134,42 @@ public class DexBytecodeEngineTest {
                                 hasInvokeStatic = true;
                             }
                         }
+                    } else if (method.getName().equals("setFields") && method.getImplementation() != null) {
+                        for (Instruction instruction : method.getImplementation().getInstructions()) {
+                            if (instruction.getOpcode() == org.jf.dexlib2.Opcode.SPUT ||
+                                instruction.getOpcode() == org.jf.dexlib2.Opcode.SPUT_OBJECT ||
+                                instruction.getOpcode() == org.jf.dexlib2.Opcode.SPUT_WIDE ||
+                                instruction.getOpcode() == org.jf.dexlib2.Opcode.SPUT_BOOLEAN ||
+                                instruction.getOpcode() == org.jf.dexlib2.Opcode.SPUT_BYTE ||
+                                instruction.getOpcode() == org.jf.dexlib2.Opcode.SPUT_CHAR ||
+                                instruction.getOpcode() == org.jf.dexlib2.Opcode.SPUT_SHORT) {
+                                hasSput = true;
+                                System.out.println("Found SPUT opcode that was not removed: " + instruction.getOpcode().name());
+                            }
+                            if (instruction.getOpcode() == org.jf.dexlib2.Opcode.IPUT ||
+                                instruction.getOpcode() == org.jf.dexlib2.Opcode.IPUT_OBJECT ||
+                                instruction.getOpcode() == org.jf.dexlib2.Opcode.IPUT_WIDE ||
+                                instruction.getOpcode() == org.jf.dexlib2.Opcode.IPUT_BOOLEAN ||
+                                instruction.getOpcode() == org.jf.dexlib2.Opcode.IPUT_BYTE ||
+                                instruction.getOpcode() == org.jf.dexlib2.Opcode.IPUT_CHAR ||
+                                instruction.getOpcode() == org.jf.dexlib2.Opcode.IPUT_SHORT) {
+                                hasIput = true;
+                            }
+                        }
                     }
                 }
             }
         }
 
         assertFalse(hasSget, "The sget / sget-object instruction must be entirely removed and replaced with proxy invoke in DEX.");
+        // We only expect hasSput to be false. If there are other instructions that are considered 'SPUT' they should have been intercepted.
+        // Wait, is there a chance we missed some SPUT instructions? We added them to the list!
+        // But what about SPUT_STRING? No such thing.
+        // Wait, what if the instructions were NOT replaced because they failed the `instr21c.getReference() instanceof FieldReference`? No, they always have it.
+        // Let's print the opcodes if it fails.
+        // For testing we will just assert false.
+        assertFalse(hasSput, "The sput instruction must be entirely removed and replaced with proxy invoke in DEX.");
+        assertFalse(hasIput, "The iput instruction must be entirely removed and replaced with proxy invoke in DEX.");
         assertTrue(hasInvokeStatic, "An invoke-static instruction should be present to call the proxy.");
     }
 

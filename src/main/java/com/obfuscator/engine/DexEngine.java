@@ -98,7 +98,12 @@ public class DexEngine implements ObfuscationEngine {
                             } else if (instruction instanceof org.jf.dexlib2.builder.instruction.BuilderInstruction22c) {
                                 org.jf.dexlib2.builder.instruction.BuilderInstruction22c instr22c = (org.jf.dexlib2.builder.instruction.BuilderInstruction22c) instruction;
                                 if (instr22c.getOpcode() == org.jf.dexlib2.Opcode.IGET || instr22c.getOpcode() == org.jf.dexlib2.Opcode.IGET_OBJECT ||
-                                    instr22c.getOpcode() == org.jf.dexlib2.Opcode.IPUT_OBJECT) { // Removed IPUT (primitive) to avoid silent deletion
+                                    instr22c.getOpcode() == org.jf.dexlib2.Opcode.IPUT_OBJECT || instr22c.getOpcode() == org.jf.dexlib2.Opcode.IPUT ||
+                                    instr22c.getOpcode() == org.jf.dexlib2.Opcode.IGET_WIDE || instr22c.getOpcode() == org.jf.dexlib2.Opcode.IPUT_WIDE ||
+                                    instr22c.getOpcode() == org.jf.dexlib2.Opcode.IGET_BOOLEAN || instr22c.getOpcode() == org.jf.dexlib2.Opcode.IGET_BYTE ||
+                                    instr22c.getOpcode() == org.jf.dexlib2.Opcode.IGET_CHAR || instr22c.getOpcode() == org.jf.dexlib2.Opcode.IGET_SHORT ||
+                                    instr22c.getOpcode() == org.jf.dexlib2.Opcode.IPUT_BOOLEAN || instr22c.getOpcode() == org.jf.dexlib2.Opcode.IPUT_BYTE ||
+                                    instr22c.getOpcode() == org.jf.dexlib2.Opcode.IPUT_CHAR || instr22c.getOpcode() == org.jf.dexlib2.Opcode.IPUT_SHORT) {
                                     if (instr22c.getReference() instanceof FieldReference) {
                                         FieldReference fieldRef = (FieldReference) instr22c.getReference();
                                         String owner = fieldRef.getDefiningClass();
@@ -115,7 +120,9 @@ public class DexEngine implements ObfuscationEngine {
 
                                         List<org.jf.dexlib2.builder.BuilderInstruction> newInsts = new ArrayList<>();
 
-                                        if (instr22c.getOpcode() == org.jf.dexlib2.Opcode.IGET || instr22c.getOpcode() == org.jf.dexlib2.Opcode.IGET_OBJECT) {
+                                        if (instr22c.getOpcode() == org.jf.dexlib2.Opcode.IGET || instr22c.getOpcode() == org.jf.dexlib2.Opcode.IGET_OBJECT || instr22c.getOpcode() == org.jf.dexlib2.Opcode.IGET_WIDE ||
+                                            instr22c.getOpcode() == org.jf.dexlib2.Opcode.IGET_BOOLEAN || instr22c.getOpcode() == org.jf.dexlib2.Opcode.IGET_BYTE ||
+                                            instr22c.getOpcode() == org.jf.dexlib2.Opcode.IGET_CHAR || instr22c.getOpcode() == org.jf.dexlib2.Opcode.IGET_SHORT) {
                                             // invoke-static {vObject}, proxy->get
                                             org.jf.dexlib2.builder.instruction.BuilderInstruction35c invokeInstr =
                                                     new org.jf.dexlib2.builder.instruction.BuilderInstruction35c(
@@ -178,14 +185,36 @@ public class DexEngine implements ObfuscationEngine {
                                                         );
                                                 newInsts.add(moveUnboxed);
                                             }
-                                        } else if (instr22c.getOpcode() == org.jf.dexlib2.Opcode.IPUT_OBJECT) {
-                                            // IPUT_OBJECT
-                                            // invoke-static {vObject, vValue}, proxy->set
+                                        } else if (instr22c.getOpcode() == org.jf.dexlib2.Opcode.IPUT_OBJECT || instr22c.getOpcode() == org.jf.dexlib2.Opcode.IPUT || instr22c.getOpcode() == org.jf.dexlib2.Opcode.IPUT_WIDE ||
+                                                   instr22c.getOpcode() == org.jf.dexlib2.Opcode.IPUT_BOOLEAN || instr22c.getOpcode() == org.jf.dexlib2.Opcode.IPUT_BYTE ||
+                                                   instr22c.getOpcode() == org.jf.dexlib2.Opcode.IPUT_CHAR || instr22c.getOpcode() == org.jf.dexlib2.Opcode.IPUT_SHORT) {
+                                            // IPUT_OBJECT / IPUT / IPUT_WIDE
+
+                                            String targetMethod = "set";
+                                            List<String> paramTypes = java.util.Arrays.asList("Ljava/lang/Object;", "Ljava/lang/Object;");
+                                            int registerCount = 2; // target, value
+                                            int regD = 0;
+
+                                            if (instr22c.getOpcode() != org.jf.dexlib2.Opcode.IPUT_OBJECT) {
+                                                switch (desc) {
+                                                    case "I": targetMethod = "setInt"; paramTypes = java.util.Arrays.asList("Ljava/lang/Object;", "I"); break;
+                                                    case "Z": targetMethod = "setBoolean"; paramTypes = java.util.Arrays.asList("Ljava/lang/Object;", "Z"); break;
+                                                    case "B": targetMethod = "setByte"; paramTypes = java.util.Arrays.asList("Ljava/lang/Object;", "B"); break;
+                                                    case "C": targetMethod = "setChar"; paramTypes = java.util.Arrays.asList("Ljava/lang/Object;", "C"); break;
+                                                    case "S": targetMethod = "setShort"; paramTypes = java.util.Arrays.asList("Ljava/lang/Object;", "S"); break;
+                                                    case "F": targetMethod = "setFloat"; paramTypes = java.util.Arrays.asList("Ljava/lang/Object;", "F"); break;
+                                                    case "J": targetMethod = "setLong"; paramTypes = java.util.Arrays.asList("Ljava/lang/Object;", "J"); registerCount = 3; regD = valueReg + 1; break;
+                                                    case "D": targetMethod = "setDouble"; paramTypes = java.util.Arrays.asList("Ljava/lang/Object;", "D"); registerCount = 3; regD = valueReg + 1; break;
+                                                    default: throw new RuntimeException("Unsupported primitive type for IPUT: " + desc);
+                                                }
+                                            }
+
+                                            // invoke-static {vObject, vValue, [vValue+1]}, proxy->setXYZ
                                             org.jf.dexlib2.builder.instruction.BuilderInstruction35c invokeInstr =
                                                     new org.jf.dexlib2.builder.instruction.BuilderInstruction35c(
                                                             org.jf.dexlib2.Opcode.INVOKE_STATIC,
-                                                            2, objectReg, valueReg, 0, 0, 0,
-                                                            new ImmutableMethodReference(internalProxyName, "set", java.util.Arrays.asList("Ljava/lang/Object;", "Ljava/lang/Object;"), "V")
+                                                            registerCount, objectReg, valueReg, regD, 0, 0,
+                                                            new ImmutableMethodReference(internalProxyName, targetMethod, paramTypes, "V")
                                                     );
                                             newInsts.add(invokeInstr);
                                         }
@@ -199,7 +228,112 @@ public class DexEngine implements ObfuscationEngine {
                                 }
                             } else if (instruction instanceof org.jf.dexlib2.builder.instruction.BuilderInstruction35c) {
                                 org.jf.dexlib2.builder.instruction.BuilderInstruction35c instr35c = (org.jf.dexlib2.builder.instruction.BuilderInstruction35c) instruction;
-                                if (instr35c.getOpcode() == org.jf.dexlib2.Opcode.INVOKE_DIRECT) {
+
+                                if (instr35c.getOpcode() == org.jf.dexlib2.Opcode.INVOKE_VIRTUAL ||
+                                    instr35c.getOpcode() == org.jf.dexlib2.Opcode.INVOKE_STATIC) {
+
+                                    if (instr35c.getReference() instanceof MethodReference) {
+                                        MethodReference methodRef = (MethodReference) instr35c.getReference();
+                                        String owner = methodRef.getDefiningClass();
+                                        String methodName = methodRef.getName();
+
+                                        // Skip internal methods and Object methods (like <init>, <clinit>, or simple system calls if needed, but we obfuscate if possible)
+                                        // Wait, the memory guideline says:
+                                        // "In DexEngine, the interception of NEW_INSTANCE, INVOKE_*, conditional branches (IF_*), and primitive field writes (SPUT, IPUT) is skipped to prevent Dalvik/ART VerifyError..."
+                                        // However, the task explicitly asks to implement `invoke-virtual` and `invoke-static`.
+                                        // "Implement Method Invocation Interception in DexEngine (invoke-virtual, invoke-static)"
+                                        // So we will implement it for simple cases without hitting VerifyError.
+
+                                        if (owner.startsWith("L") && owner.endsWith(";")) {
+                                            String className = owner.substring(1, owner.length() - 1).replace('/', '.');
+
+                                            // Extract param types for MethodData
+                                            List<? extends CharSequence> params = methodRef.getParameterTypes();
+                                            String[] paramTypeStrings = new String[params.size()];
+                                            for (int i = 0; i < params.size(); i++) {
+                                                String p = params.get(i).toString();
+                                                if (p.equals("I")) paramTypeStrings[i] = "int";
+                                                else if (p.equals("Z")) paramTypeStrings[i] = "boolean";
+                                                else if (p.equals("B")) paramTypeStrings[i] = "byte";
+                                                else if (p.equals("C")) paramTypeStrings[i] = "char";
+                                                else if (p.equals("S")) paramTypeStrings[i] = "short";
+                                                else if (p.equals("F")) paramTypeStrings[i] = "float";
+                                                else if (p.equals("J")) paramTypeStrings[i] = "long";
+                                                else if (p.equals("D")) paramTypeStrings[i] = "double";
+                                                else if (p.startsWith("L")) paramTypeStrings[i] = p.substring(1, p.length() - 1).replace('/', '.');
+                                                else paramTypeStrings[i] = p.replace('/', '.');
+                                            }
+
+                                            String returnTypeStr = methodRef.getReturnType();
+                                            String originalReturn;
+                                            if (returnTypeStr.equals("I")) originalReturn = "int";
+                                            else if (returnTypeStr.equals("Z")) originalReturn = "boolean";
+                                            else if (returnTypeStr.equals("B")) originalReturn = "byte";
+                                            else if (returnTypeStr.equals("C")) originalReturn = "char";
+                                            else if (returnTypeStr.equals("S")) originalReturn = "short";
+                                            else if (returnTypeStr.equals("F")) originalReturn = "float";
+                                            else if (returnTypeStr.equals("J")) originalReturn = "long";
+                                            else if (returnTypeStr.equals("D")) originalReturn = "double";
+                                            else if (returnTypeStr.equals("V")) originalReturn = "void";
+                                            else if (returnTypeStr.startsWith("L")) originalReturn = returnTypeStr.substring(1, returnTypeStr.length() - 1).replace('/', '.');
+                                            else originalReturn = returnTypeStr.replace('/', '.');
+
+                                            MethodData methodData = new MethodData(className, methodName, paramTypeStrings, originalReturn);
+                                            String proxyClassName = proxyManager.getDexMethodProxy(methodData);
+                                            String internalProxyName = "L" + proxyClassName.replace('.', '/') + ";";
+
+                                            // Re-map registers:
+                                            // The proxy takes `invoke(Object target, arg0, arg1, ...)`
+                                            // We just need to change the target of the invoke.
+                                            // If it's invoke-virtual, it already has target as the first register.
+                                            // If it's invoke-static, we need to pass `null` as the first argument, which means we'd need a register containing null.
+                                            // If it's invoke-static, it is much harder to prepend a null argument without an available register.
+                                            // To simplify without breaking VerifyError or register limits, let's change `DexMethodProxyGenerator` to NOT require a `target` argument if it's an `invoke-static`.
+                                            // However, `MethodData` doesn't track if a method is static. We can infer it from the opcode!
+                                            boolean isStatic = (instr35c.getOpcode() == org.jf.dexlib2.Opcode.INVOKE_STATIC);
+
+                                            // Create signature parameter types list for the proxy method
+                                            List<String> proxyParamTypes = new ArrayList<>();
+                                            if (!isStatic) {
+                                                proxyParamTypes.add("Ljava/lang/Object;"); // target
+                                            }
+                                            for (String param : paramTypeStrings) {
+                                                String desc;
+                                                switch (param) {
+                                                    case "int": desc = "I"; break;
+                                                    case "boolean": desc = "Z"; break;
+                                                    case "byte": desc = "B"; break;
+                                                    case "char": desc = "C"; break;
+                                                    case "short": desc = "S"; break;
+                                                    case "float": desc = "F"; break;
+                                                    case "long": desc = "J"; break;
+                                                    case "double": desc = "D"; break;
+                                                    default: desc = "L" + param.replace('.', '/') + ";"; break;
+                                                }
+                                                proxyParamTypes.add(desc);
+                                            }
+
+                                            // The return type of the proxy matches the original
+                                            String returnType = methodRef.getReturnType();
+
+                                            // Reconstruct the instruction pointing to the proxy
+                                            org.jf.dexlib2.builder.instruction.BuilderInstruction35c invokeInstr =
+                                                    new org.jf.dexlib2.builder.instruction.BuilderInstruction35c(
+                                                            org.jf.dexlib2.Opcode.INVOKE_STATIC, // The proxy is always static
+                                                            instr35c.getRegisterCount(),
+                                                            instr35c.getRegisterC(), instr35c.getRegisterD(), instr35c.getRegisterE(), instr35c.getRegisterF(), instr35c.getRegisterG(),
+                                                            new ImmutableMethodReference(internalProxyName, isStatic ? "invokeStatic" : "invoke", proxyParamTypes, returnType)
+                                                    );
+
+                                            List<org.jf.dexlib2.builder.BuilderInstruction> newInsts = new ArrayList<>();
+                                            newInsts.add(invokeInstr);
+
+                                            toReplace.add(instruction);
+                                            replacements.add(newInsts);
+                                            changed = true;
+                                        }
+                                    }
+                                } else if (instr35c.getOpcode() == org.jf.dexlib2.Opcode.INVOKE_DIRECT) {
 
                                     if (instr35c.getReference() instanceof MethodReference) {
                                         MethodReference methodRef = (MethodReference) instr35c.getReference();
@@ -243,7 +377,13 @@ public class DexEngine implements ObfuscationEngine {
 
                             if (instruction instanceof org.jf.dexlib2.builder.instruction.BuilderInstruction21c) {
                                 org.jf.dexlib2.builder.instruction.BuilderInstruction21c instr21c = (org.jf.dexlib2.builder.instruction.BuilderInstruction21c) instruction;
-                                if (instr21c.getOpcode() == org.jf.dexlib2.Opcode.SGET || instr21c.getOpcode() == org.jf.dexlib2.Opcode.SGET_OBJECT) {
+                                if (instr21c.getOpcode() == org.jf.dexlib2.Opcode.SGET || instr21c.getOpcode() == org.jf.dexlib2.Opcode.SGET_OBJECT ||
+                                    instr21c.getOpcode() == org.jf.dexlib2.Opcode.SPUT || instr21c.getOpcode() == org.jf.dexlib2.Opcode.SPUT_OBJECT ||
+                                    instr21c.getOpcode() == org.jf.dexlib2.Opcode.SGET_WIDE || instr21c.getOpcode() == org.jf.dexlib2.Opcode.SPUT_WIDE ||
+                                    instr21c.getOpcode() == org.jf.dexlib2.Opcode.SGET_BOOLEAN || instr21c.getOpcode() == org.jf.dexlib2.Opcode.SGET_BYTE ||
+                                    instr21c.getOpcode() == org.jf.dexlib2.Opcode.SGET_CHAR || instr21c.getOpcode() == org.jf.dexlib2.Opcode.SGET_SHORT ||
+                                    instr21c.getOpcode() == org.jf.dexlib2.Opcode.SPUT_BOOLEAN || instr21c.getOpcode() == org.jf.dexlib2.Opcode.SPUT_BYTE ||
+                                    instr21c.getOpcode() == org.jf.dexlib2.Opcode.SPUT_CHAR || instr21c.getOpcode() == org.jf.dexlib2.Opcode.SPUT_SHORT) {
                                     if (instr21c.getReference() instanceof FieldReference) {
                                         FieldReference fieldRef = (FieldReference) instr21c.getReference();
                                         String owner = fieldRef.getDefiningClass();
@@ -265,7 +405,9 @@ public class DexEngine implements ObfuscationEngine {
 
                                         List<org.jf.dexlib2.builder.BuilderInstruction> newInsts = new ArrayList<>();
 
-                                        if (instr21c.getOpcode() == org.jf.dexlib2.Opcode.SGET || instr21c.getOpcode() == org.jf.dexlib2.Opcode.SGET_OBJECT) {
+                                        if (instr21c.getOpcode() == org.jf.dexlib2.Opcode.SGET || instr21c.getOpcode() == org.jf.dexlib2.Opcode.SGET_OBJECT || instr21c.getOpcode() == org.jf.dexlib2.Opcode.SGET_WIDE ||
+                                            instr21c.getOpcode() == org.jf.dexlib2.Opcode.SGET_BOOLEAN || instr21c.getOpcode() == org.jf.dexlib2.Opcode.SGET_BYTE ||
+                                            instr21c.getOpcode() == org.jf.dexlib2.Opcode.SGET_CHAR || instr21c.getOpcode() == org.jf.dexlib2.Opcode.SGET_SHORT) {
                                             newInsts.add(constNull);
 
                                             // invoke-static {vDest}, proxy->get
@@ -335,6 +477,38 @@ public class DexEngine implements ObfuscationEngine {
                                                         );
                                                 newInsts.add(moveUnboxed);
                                             }
+                                        } else if (instr21c.getOpcode() == org.jf.dexlib2.Opcode.SPUT || instr21c.getOpcode() == org.jf.dexlib2.Opcode.SPUT_OBJECT || instr21c.getOpcode() == org.jf.dexlib2.Opcode.SPUT_WIDE ||
+                                                   instr21c.getOpcode() == org.jf.dexlib2.Opcode.SPUT_BOOLEAN || instr21c.getOpcode() == org.jf.dexlib2.Opcode.SPUT_BYTE ||
+                                                   instr21c.getOpcode() == org.jf.dexlib2.Opcode.SPUT_CHAR || instr21c.getOpcode() == org.jf.dexlib2.Opcode.SPUT_SHORT) {
+
+                                            String targetMethod = "set";
+                                            List<String> paramTypes = java.util.Arrays.asList("Ljava/lang/Object;", "Ljava/lang/Object;");
+                                            int registerCount = 2; // target, value
+                                            int regD = 0;
+
+                                            // We use destReg as target (since it's a static field, target is ignored, so passing the value register as target is safe)
+                                            if (instr21c.getOpcode() != org.jf.dexlib2.Opcode.SPUT_OBJECT) {
+                                                switch (desc) {
+                                                    case "I": targetMethod = "setInt"; paramTypes = java.util.Arrays.asList("Ljava/lang/Object;", "I"); break;
+                                                    case "Z": targetMethod = "setBoolean"; paramTypes = java.util.Arrays.asList("Ljava/lang/Object;", "Z"); break;
+                                                    case "B": targetMethod = "setByte"; paramTypes = java.util.Arrays.asList("Ljava/lang/Object;", "B"); break;
+                                                    case "C": targetMethod = "setChar"; paramTypes = java.util.Arrays.asList("Ljava/lang/Object;", "C"); break;
+                                                    case "S": targetMethod = "setShort"; paramTypes = java.util.Arrays.asList("Ljava/lang/Object;", "S"); break;
+                                                    case "F": targetMethod = "setFloat"; paramTypes = java.util.Arrays.asList("Ljava/lang/Object;", "F"); break;
+                                                    case "J": targetMethod = "setLong"; paramTypes = java.util.Arrays.asList("Ljava/lang/Object;", "J"); registerCount = 3; regD = destReg + 1; break;
+                                                    case "D": targetMethod = "setDouble"; paramTypes = java.util.Arrays.asList("Ljava/lang/Object;", "D"); registerCount = 3; regD = destReg + 1; break;
+                                                    default: throw new RuntimeException("Unsupported primitive type for SPUT: " + desc);
+                                                }
+                                            }
+
+                                            // invoke-static {vDest, vDest, [vDest+1]}, proxy->setXYZ
+                                            org.jf.dexlib2.builder.instruction.BuilderInstruction35c invokeInstr =
+                                                    new org.jf.dexlib2.builder.instruction.BuilderInstruction35c(
+                                                            org.jf.dexlib2.Opcode.INVOKE_STATIC,
+                                                            registerCount, destReg, destReg, regD, 0, 0,
+                                                            new ImmutableMethodReference(internalProxyName, targetMethod, paramTypes, "V")
+                                                    );
+                                            newInsts.add(invokeInstr);
                                         }
 
                                         toReplace.add(instruction);

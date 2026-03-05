@@ -20,6 +20,7 @@ public class ProxyManager {
 
     private final StringProxyGenerator stringProxyGenerator = new StringProxyGenerator();
     private final com.obfuscator.generator.MethodProxyGenerator methodProxyGenerator = new com.obfuscator.generator.MethodProxyGenerator();
+    private final com.obfuscator.generator.DexMethodProxyGenerator dexMethodProxyGenerator = new com.obfuscator.generator.DexMethodProxyGenerator();
     private final com.obfuscator.generator.ClassCreationProxyGenerator classCreationProxyGenerator = new com.obfuscator.generator.ClassCreationProxyGenerator();
     private final com.obfuscator.generator.FieldProxyGenerator fieldProxyGenerator = new com.obfuscator.generator.FieldProxyGenerator();
     private final com.obfuscator.generator.ControlFlowProxyGenerator controlFlowProxyGenerator = new com.obfuscator.generator.ControlFlowProxyGenerator();
@@ -42,6 +43,26 @@ public class ProxyManager {
         String sourceCode = (String) stringProxyGenerator.generate(proxyName, value);
 
         // Compile it immediately (or defer compilation, depending on memory limits. Here we compile immediately)
+        compiler.compile(proxyName, sourceCode);
+
+        return proxyName;
+    }
+
+    /**
+     * Retrieves or generates a Method proxy optimized for Dex generation.
+     * @param methodData The method information.
+     * @return The dynamically generated class name of the proxy.
+     */
+    public String getDexMethodProxy(com.obfuscator.generator.MethodData methodData) {
+        String key = "dex_" + methodData.getClassName() + "." + methodData.getMethodName() + ":" + java.util.Arrays.toString(methodData.getParamTypes());
+        if (methodProxies.containsKey(key)) {
+            return methodProxies.get(key);
+        }
+
+        String proxyName = DynamicNameGenerator.generate();
+        methodProxies.put(key, proxyName);
+
+        String sourceCode = (String) dexMethodProxyGenerator.generate(proxyName, methodData);
         compiler.compile(proxyName, sourceCode);
 
         return proxyName;
