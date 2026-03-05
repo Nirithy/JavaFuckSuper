@@ -35,20 +35,7 @@ public class StringProxyGenerator implements ProxyGenerator {
                 String encryptedBase64 = java.util.Base64.getEncoder().encodeToString(encryptedBytes);
 
                 sb.append("        try {\n");
-
-                // Dynamic Key Derivation
-                sb.append("            String k = \"").append(keyBase64).append("\";\n");
-                sb.append("            byte[] keyBytes = java.util.Base64.getDecoder().decode(k);\n");
-                // Introduce dynamic runtime checks to make it slightly harder to extract the key statically
-                sb.append("            long t = System.currentTimeMillis();\n");
-                sb.append("            if (t < 0) {\n");
-                sb.append("                for (int i=0; i<keyBytes.length; i++) keyBytes[i] = (byte)(keyBytes[i] ^ 0x42);\n");
-                sb.append("            }\n");
-                sb.append("            StackTraceElement[] ste = Thread.currentThread().getStackTrace();\n");
-                sb.append("            if (ste.length == 0) {\n");
-                sb.append("                keyBytes[0] = 0;\n");
-                sb.append("            }\n");
-
+                sb.append("            byte[] keyBytes = java.util.Base64.getDecoder().decode(\"").append(keyBase64).append("\");\n");
                 sb.append("            javax.crypto.spec.SecretKeySpec secretKey = new javax.crypto.spec.SecretKeySpec(keyBytes, \"AES\");\n");
                 sb.append("            javax.crypto.Cipher cipher = javax.crypto.Cipher.getInstance(\"AES\");\n");
                 sb.append("            cipher.init(javax.crypto.Cipher.DECRYPT_MODE, secretKey);\n");
