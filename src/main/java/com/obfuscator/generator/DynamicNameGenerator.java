@@ -28,22 +28,26 @@ public class DynamicNameGenerator {
      */
     public static String generate() {
         // Pick a random dictionary
-        String dict = DICTIONARIES[(int) (Math.random() * DICTIONARIES.length)];
+        String dict = DICTIONARIES[java.util.concurrent.ThreadLocalRandom.current().nextInt(DICTIONARIES.length)];
 
         StringBuilder name = new StringBuilder();
 
         // Ensure it starts with a letter (Java identifier requirement)
         char startChar;
         do {
-            startChar = dict.charAt((int) (Math.random() * dict.length()));
+            startChar = dict.charAt(java.util.concurrent.ThreadLocalRandom.current().nextInt(dict.length()));
         } while (Character.isDigit(startChar));
 
         name.append(startChar);
 
-        // Generate a random length between 10 and 20 characters
-        int length = 10 + (int) (Math.random() * 11);
-        for (int i = 0; i < length; i++) {
-            name.append(dict.charAt((int) (Math.random() * dict.length())));
+        String uuidStr = UUID.randomUUID().toString().replace("-", "");
+        java.math.BigInteger num = new java.math.BigInteger(uuidStr, 16);
+        int base = dict.length();
+
+        while (num.compareTo(java.math.BigInteger.ZERO) > 0) {
+            java.math.BigInteger[] divrem = num.divideAndRemainder(java.math.BigInteger.valueOf(base));
+            name.append(dict.charAt(divrem[1].intValue()));
+            num = divrem[0];
         }
 
         return name.toString();
