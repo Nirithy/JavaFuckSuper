@@ -588,12 +588,34 @@ public class ObfuscationMethodVisitor extends MethodNode {
         // Default case (exit loop, though the method code should have returned)
         InsnList epilogue = new InsnList();
         epilogue.add(defaultCase);
-        // We shouldn't reach here normally if method returns, but add a return just in case
+
+        // Add exception control flow obfuscation (fake try-catch with ATHROW)
+        LabelNode fakeTryStart = new LabelNode();
+        LabelNode fakeTryEnd = new LabelNode();
+        LabelNode fakeCatch = new LabelNode();
+
+        epilogue.add(fakeTryStart);
+        // Throw a fake exception to confuse analysis
+        epilogue.add(new TypeInsnNode(Opcodes.NEW, "java/lang/RuntimeException"));
+        epilogue.add(new InsnNode(Opcodes.DUP));
+        epilogue.add(new LdcInsnNode("Fake Exception"));
+        epilogue.add(new MethodInsnNode(Opcodes.INVOKESPECIAL, "java/lang/RuntimeException", "<init>", "(Ljava/lang/String;)V", false));
+        epilogue.add(new InsnNode(Opcodes.ATHROW));
+        epilogue.add(fakeTryEnd);
+
+        // Catch block that will never actually execute but is registered in the ExceptionTable
+        epilogue.add(fakeCatch);
+        epilogue.add(new InsnNode(Opcodes.POP)); // Pop the exception object
+        // Return null/throw actual to satisfy verifier
         epilogue.add(new InsnNode(Opcodes.ACONST_NULL));
         epilogue.add(new InsnNode(Opcodes.ATHROW));
         epilogue.add(loopEnd);
 
         instructions.add(epilogue);
+
+        // Register the fake try-catch block
+        TryCatchBlockNode fakeTryCatchBlock = new TryCatchBlockNode(fakeTryStart, fakeTryEnd, fakeCatch, "java/lang/Exception");
+        tryCatchBlocks.add(fakeTryCatchBlock);
     }
 
     private void unboxPrimitive(Type type, InsnList list) {

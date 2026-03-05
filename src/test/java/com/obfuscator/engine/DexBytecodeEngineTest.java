@@ -254,6 +254,94 @@ public class DexBytecodeEngineTest {
     }
 
     @Test
+    public void testApkAndMultiDexProcessing() throws Exception {
+        // 1. Create a dummy APK (ZIP file) containing a classes.dex and a random text file
+        File tempApk = File.createTempFile("test-input-apk", ".apk");
+        tempApk.deleteOnExit();
+
+        String testClassName = "DummyApkTestClass";
+        String testSource = "public class DummyApkTestClass {\n" +
+                            "    public String sayHello() {\n" +
+                            "        return \"APK String\";\n" +
+                            "    }\n" +
+                            "}";
+
+        InMemoryCompiler compiler = new InMemoryCompiler();
+        compiler.compile(testClassName, testSource);
+        byte[] dummyClassBytes = compiler.getCompiledClasses().get(testClassName);
+
+        DexCompiler dexCompiler = new DexCompiler() {};
+        byte[] dexBytes = dexCompiler.compileClassToDex(dummyClassBytes);
+
+        try (java.util.zip.ZipOutputStream zos = new java.util.zip.ZipOutputStream(new java.io.FileOutputStream(tempApk))) {
+            zos.putNextEntry(new java.util.zip.ZipEntry("classes.dex"));
+            zos.write(dexBytes);
+            zos.closeEntry();
+
+            zos.putNextEntry(new java.util.zip.ZipEntry("assets/config.txt"));
+            zos.write("dummy config data".getBytes());
+            zos.closeEntry();
+        }
+
+        File tempOutputApk = File.createTempFile("test-output-apk", ".apk");
+        tempOutputApk.deleteOnExit();
+
+        // 2. Process the APK using DexEngine
+        DexEngine engine = new DexEngine();
+        engine.process(tempApk, tempOutputApk);
+
+        assertTrue(tempOutputApk.exists(), "Output APK should be created");
+        assertTrue(tempOutputApk.length() > 0, "Output APK should not be empty");
+
+        // 3. Verify the contents of the output APK
+        boolean foundDex = false;
+        boolean foundConfig = false;
+        boolean hasConstString = false;
+
+        try (java.util.zip.ZipInputStream zis = new java.util.zip.ZipInputStream(new java.io.FileInputStream(tempOutputApk))) {
+            java.util.zip.ZipEntry entry;
+            while ((entry = zis.getNextEntry()) != null) {
+                if (entry.getName().endsWith(".dex")) {
+                    foundDex = true;
+                    // Read dex bytes to verify obfuscation
+                    java.io.ByteArrayOutputStream baos = new java.io.ByteArrayOutputStream();
+                    byte[] buffer = new byte[8192];
+                    int read;
+                    while ((read = zis.read(buffer)) != -1) {
+                        baos.write(buffer, 0, read);
+                    }
+
+                    File tempExtractedDex = File.createTempFile("extracted", ".dex");
+                    tempExtractedDex.deleteOnExit();
+                    Files.write(tempExtractedDex.toPath(), baos.toByteArray());
+
+                    DexFile outDex = DexFileFactory.loadDexFile(tempExtractedDex, Opcodes.getDefault());
+                    for (ClassDef classDef : outDex.getClasses()) {
+                        if (classDef.getType().contains(testClassName)) {
+                            for (Method method : classDef.getMethods()) {
+                                if (method.getImplementation() != null) {
+                                    for (Instruction instruction : method.getImplementation().getInstructions()) {
+                                        if (instruction.getOpcode() == org.jf.dexlib2.Opcode.CONST_STRING || instruction.getOpcode() == org.jf.dexlib2.Opcode.CONST_STRING_JUMBO) {
+                                            hasConstString = true;
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                } else if (entry.getName().equals("assets/config.txt")) {
+                    foundConfig = true;
+                }
+            }
+        }
+
+        assertTrue(foundDex, "Output APK should contain .dex file(s)");
+        assertTrue(foundConfig, "Output APK should retain original non-dex resources");
+        assertFalse(hasConstString, "The string literal must be obfuscated inside the APK's dex file");
+    }
+
+    @Test
     public void testStringObfuscationInDex() throws Exception {
         // Compile a dummy java class to .class using InMemoryCompiler
         String testClassName = "DummyDexTestClass";

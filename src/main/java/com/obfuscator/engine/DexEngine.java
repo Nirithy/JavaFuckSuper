@@ -20,10 +20,16 @@ import org.jf.dexlib2.rewriter.RewriterModule;
 import org.jf.dexlib2.rewriter.Rewriters;
 
 import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
+import java.io.InputStream;
 import java.nio.file.Files;
 import java.util.Map;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipInputStream;
+import java.util.zip.ZipOutputStream;
 
 import com.android.tools.r8.D8;
 import com.android.tools.r8.D8Command;
@@ -36,12 +42,115 @@ public class DexEngine implements ObfuscationEngine {
 
     @Override
     public void process(File input, File output) throws Exception {
-        System.out.println("Processing DEX file: " + input.getName());
+        System.out.println("Processing DEX/APK file: " + input.getName());
         ProxyManager proxyManager = new ProxyManager();
 
-        // 1. Load the original dex file
-        // We use the default opcodes for reading, which usually matches the dex file's api level
-        DexFile dexFile = DexFileFactory.loadDexFile(input, Opcodes.getDefault());
+        boolean isZip = input.getName().endsWith(".apk") || input.getName().endsWith(".zip");
+
+        if (isZip) {
+            processApk(input, output, proxyManager);
+        } else {
+            // 1. Load the original dex file
+            // We use the default opcodes for reading, which usually matches the dex file's api level
+            DexFile dexFile = DexFileFactory.loadDexFile(input, Opcodes.getDefault());
+
+            DexFile rewrittenDexFile = rewriteDexFile(dexFile, proxyManager);
+            mergeAndWriteDex(rewrittenDexFile, output, proxyManager);
+        }
+    }
+
+    private void processApk(File input, File output, ProxyManager proxyManager) throws Exception {
+        File tempDir = Files.createTempDirectory("apk-processing").toFile();
+        tempDir.deleteOnExit();
+
+        List<File> processedDexFiles = new ArrayList<>();
+
+        try (ZipInputStream zis = new ZipInputStream(new FileInputStream(input));
+             ZipOutputStream zos = new ZipOutputStream(new FileOutputStream(output))) {
+
+            ZipEntry entry;
+            while ((entry = zis.getNextEntry()) != null) {
+                String entryName = entry.getName();
+
+                if (entryName.endsWith(".dex")) {
+                    System.out.println("Processing DEX entry: " + entryName);
+
+                    // Extract to temp file
+                    File tempDex = new File(tempDir, entryName);
+                    try (FileOutputStream fos = new FileOutputStream(tempDex)) {
+                        byte[] buffer = new byte[8192];
+                        int read;
+                        while ((read = zis.read(buffer)) != -1) {
+                            fos.write(buffer, 0, read);
+                        }
+                    }
+
+                    // Rewrite the DEX file
+                    DexFile dexFile = DexFileFactory.loadDexFile(tempDex, Opcodes.getDefault());
+                    DexFile rewrittenDexFile = rewriteDexFile(dexFile, proxyManager);
+
+                    // Write rewritten dex to a new temp file
+                    File tempRewrittenDex = new File(tempDir, "rewritten_" + entryName);
+                    DexFileFactory.writeDexFile(tempRewrittenDex.getAbsolutePath(), rewrittenDexFile);
+                    processedDexFiles.add(tempRewrittenDex);
+                } else {
+                    // Copy non-dex files directly
+                    zos.putNextEntry(new ZipEntry(entryName));
+                    byte[] buffer = new byte[8192];
+                    int read;
+                    while ((read = zis.read(buffer)) != -1) {
+                        zos.write(buffer, 0, read);
+                    }
+                    zos.closeEntry();
+                }
+            }
+
+            // Compile proxy classes
+            Map<String, byte[]> proxies = proxyManager.getCompiledProxies();
+            System.out.println("Injecting " + proxies.size() + " compiled proxy classes into the APK.");
+
+            List<File> classFiles = new ArrayList<>();
+            for (Map.Entry<String, byte[]> proxyEntry : proxies.entrySet()) {
+                String className = proxyEntry.getKey();
+                byte[] classBytes = proxyEntry.getValue();
+                File classFile = new File(tempDir, className + ".class");
+                Files.write(classFile.toPath(), classBytes);
+                classFiles.add(classFile);
+            }
+
+            // Merge all rewritten DEX files and proxy classes into a new set of DEX files
+            // To properly handle multi-dex, we will run D8 on all of them
+            if (!processedDexFiles.isEmpty() || !classFiles.isEmpty()) {
+                File d8OutputDir = new File(tempDir, "d8-output");
+                d8OutputDir.mkdirs();
+
+                D8Command.Builder d8Builder = D8Command.builder()
+                        .setMinApiLevel(21)
+                        .setOutput(d8OutputDir.toPath(), OutputMode.DexIndexed);
+
+                for (File dexFile : processedDexFiles) {
+                    d8Builder.addProgramFiles(dexFile.toPath());
+                }
+                for (File classFile : classFiles) {
+                    d8Builder.addProgramFiles(classFile.toPath());
+                }
+
+                D8.run(d8Builder.build());
+
+                // Add the resulting DEX files back into the ZIP
+                File[] outDexFiles = d8OutputDir.listFiles((dir, name) -> name.endsWith(".dex"));
+                if (outDexFiles != null) {
+                    for (File dexFile : outDexFiles) {
+                        zos.putNextEntry(new ZipEntry(dexFile.getName()));
+                        Files.copy(dexFile.toPath(), zos);
+                        zos.closeEntry();
+                    }
+                }
+            }
+        }
+    }
+
+    private DexFile rewriteDexFile(DexFile dexFile, ProxyManager proxyManager) {
 
         // 2. Setup DexRewriter to intercept and rewrite instructions using MutableMethodImplementation to handle offsets correctly
         DexRewriter methodRewriter = new DexRewriter(new RewriterModule() {
@@ -561,8 +670,10 @@ public class DexEngine implements ObfuscationEngine {
             }
         });
 
-        DexFile rewrittenDexFile = methodRewriter.getDexFileRewriter().rewrite(dexFile);
+        return methodRewriter.getDexFileRewriter().rewrite(dexFile);
+    }
 
+    private void mergeAndWriteDex(DexFile rewrittenDexFile, File output, ProxyManager proxyManager) throws Exception {
         // 3. Write out the modified dex file to a temporary file
         File tempModifiedOriginalDex = File.createTempFile("modified-original-", ".dex");
         tempModifiedOriginalDex.deleteOnExit();

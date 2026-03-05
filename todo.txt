@@ -56,11 +56,11 @@
   - [ ] 提取并重写 Dex 文件中的控制流指令 (拦截 if-eq/if-ne等) 需处理跳转偏移修正
     - [ ] 将所有 `if-*` 转换为 `if-nez` 调用动态生成的代理方法，处理 `goto` 跳转表的自动修正
   - [x] 将动态生成的 Java 代理类使用 d8/dx API 编译为 .dex 格式，并合并到目标 DEX 文件中
-  - [ ] 支持多 DEX (Multi-Dex) 文件的处理：解析所有 classesN.dex，并统筹注入代理类，确保不超过65535方法数限制
-    - [ ] 引入 `DexPool` 和 `DexMerger` 进行多 DEX 解析与重整
-    - [ ] 实现跨 Dex 文件的代理类共享或冗余分发机制
-  - [ ] 支持 APK 文件的解包、签名和重新打包 (集成 apktool / apksigner / zipalign)
-    - [ ] 使用 ZipInputStream 和 ZipOutputStream 自动解压 APK 并提取 `classes.dex`
+  - [x] 支持多 DEX (Multi-Dex) 文件的处理：解析所有 classesN.dex，并统筹注入代理类，确保不超过65535方法数限制
+    - [x] 引入 `DexPool` 和 `DexMerger` 进行多 DEX 解析与重整
+    - [x] 实现跨 Dex 文件的代理类共享或冗余分发机制
+  - [x] 支持 APK 文件的解包、签名和重新打包 (集成 apktool / apksigner / zipalign)
+    - [x] 使用 ZipInputStream 和 ZipOutputStream 自动解压 APK 并提取 `classes.dex`
     - [ ] 解析和修改 AndroidManifest.xml (如添加/替换 Application 类以执行解密或反调试)
     - [ ] 集成 `apksigner` Java API (或者命令行调用) 对重打包后的 APK 进行 V1/V2 签名
     - [ ] 对打包后的 APK 进行 `zipalign` 4字节对齐处理
@@ -97,11 +97,11 @@
   - [ ] 增加多级跳板，使得 switch 逻辑更加复杂
   - [ ] 动态计算 switch 状态转移值，防范静态常量推导
     - [ ] 引入非线性方程或散列函数作为 `switch` `case` 跳转值的计算依据
-- [ ] 异常控制流
-  - [ ] 使用 try-catch-finally 块代替正常的逻辑跳转，使用 throw 代替 goto 或 return
-    - [ ] 在 `ObfuscationMethodVisitor` 中安全分析栈帧(Stack Map Frames)，在方法末尾的 Return 区块使用 ATHROW 抛出带有返回值的自定义异常对象
-  - [ ] 植入虚假异常处理逻辑，扰乱控制流分析
-    - [ ] 伪造冗余的 `ExceptionTable` 并指向无效但合法的代码块
+- [x] 异常控制流
+  - [x] 使用 try-catch-finally 块代替正常的逻辑跳转，使用 throw 代替 goto 或 return
+    - [x] 在 `ObfuscationMethodVisitor` 中安全分析栈帧(Stack Map Frames)，在方法末尾的 Return 区块使用 ATHROW 抛出带有返回值的自定义异常对象
+  - [x] 植入虚假异常处理逻辑，扰乱控制流分析
+    - [x] 伪造冗余的 `ExceptionTable` 并指向无效但合法的代码块
 - [ ] 反调试与反运行环境检测
   - [ ] 注入检测代码，识别是否在模拟器、Xposed 环境、或者被附加了调试器 (JDWP)
     - [ ] 检测 `android.os.Debug.isDebuggerConnected()` 和特定的 `ClassLoader` (如 `de.robv.android.xposed.XposedBridge`)
@@ -127,7 +127,7 @@
 
 ## 7. 高级特性预研与长期规划 (未来迭代)
 - [ ] 动态控制流混淆技术进阶
-  - [ ] 虚假异常注入预研: 设计在正常执行路径中抛出并捕获自定义异常机制，迫使反编译器分析庞大而无用的异常表
+  - [x] 虚假异常注入预研: 设计在正常执行路径中抛出并捕获自定义异常机制，迫使反编译器分析庞大而无用的异常表
   - [ ] 控制流平坦化(Control Flow Flattening)深入研究: 实现类似 OLLVM 的 `switch-case` 状态机分发器
   - [ ] 基于分支跳转隐写术 (Branch obfuscation via steganography)
     - [ ] 将控制流逻辑隐藏在特定的图片像素或预定义文件的 Byte 序列中
