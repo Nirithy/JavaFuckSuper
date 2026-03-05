@@ -36,7 +36,7 @@
   - [x] 实现 MethodVisitor 拦截 INVOKE 类指令替换为代理调用
   - [x] 实现 MethodVisitor 拦截 NEW 指令替换为代理调用
   - [x] 实现 MethodVisitor 拦截 FIELD 读写指令替换为代理调用
-  - [ ] 实现 MethodVisitor 拦截 控制流/比较 指令替换为代理调用 (完善针对各类跳转指令如 IFEQ, IFNULL, IF_ICMPEQ 等的处理)
+  - [x] 实现 MethodVisitor 拦截 控制流/比较 指令替换为代理调用 (完善针对各类跳转指令如 IFEQ, IFNULL, IF_ICMPEQ 等的处理)
 - [ ] 实现对 .dex 文件的解析与混淆重写 (Dexlib2/Smali)
   - [ ] 评估并引入 smali/dexlib2 依赖
   - [ ] 使用 Dexlib2 实现基础的 DEX 文件读取和写入骨架 (DexBytecodeEngine)
@@ -57,21 +57,33 @@
   - [x] 在代理类中随机使用传统 Reflection 或 JDK 7+ MethodHandle 调用目标方法 (MethodProxy, FieldProxy, ClassCreationProxy)
 - [ ] 无效死代码与花指令生成
   - [x] 在生成的控制流代理类 (ControlFlowProxy) 内插入对运行结果无影响的复杂算术运算和条件分支
-  - [ ] 将花指令扩展到主类的原始方法中 (在 ObfuscationMethodVisitor 中插入 NOP, goto, 等无用跳转与算术指令)
+  - [x] 将花指令扩展到主类的原始方法中 (在 ObfuscationMethodVisitor 中插入 NOP, goto, 等无用跳转与算术指令)
   - [ ] 实现针对方法级别的基本块打乱 (Block splitting and shuffling)
 - [ ] 深度字符串加密
   - [ ] 支持通过动态密钥解密原始字符串，密钥可以分散在多个代理类中
   - [ ] 引入 AES / DES 等加密算法对常量池字符串进行静态加密，动态解密
+  - [ ] 实现自定义混淆字典，进一步加固生成的标识符名称
+  - [ ] 动态加载密钥：从外部服务器或环境隐写获取解密密钥
 
 ## 5. 高级混淆特性与保护
 - [ ] Opaque Predicates (不透明谓词) 插入
   - [ ] 生成总是为真或为假的复杂条件表达式，增加反编译器的分析难度
+  - [ ] 实现基于数学定理的谓词，使得静态分析难以求解
+  - [ ] 实现基于状态机的动态谓词生成
 - [ ] 控制流平坦化 (Control Flow Flattening)
   - [ ] 将方法内原有的基本块转化为一个由大的 switch-case 语句管理的调度器循环
+  - [ ] 增加多级跳板，使得 switch 逻辑更加复杂
+  - [ ] 动态计算 switch 状态转移值，防范静态常量推导
 - [ ] 异常控制流
   - [ ] 使用 try-catch-finally 块代替正常的逻辑跳转，使用 throw 代替 goto 或 return
+  - [ ] 植入虚假异常处理逻辑，扰乱控制流分析
 - [ ] 反调试与反运行环境检测
   - [ ] 注入检测代码，识别是否在模拟器、Xposed 环境、或者被附加了调试器 (JDWP)
+  - [ ] 检测 Root 环境以及 Frida/Xposed 框架 Hook
+  - [ ] 加入自毁机制或应用层重启逻辑响应安全威胁
+- [ ] 反编译工具抵抗 (Anti-Decompiler)
+  - [ ] 构造引发 CFR / Procyon 等主流反编译工具崩溃的特殊指令序列 (如非法的局部变量表/异常表)
+  - [ ] 利用 Java 语言规范与 Class 文件规范差异，进行类库漏洞攻击混淆
 
 ## 6. 测试验证模块
 - [x] 编写测试用例验证代理类的生成与运行正确性

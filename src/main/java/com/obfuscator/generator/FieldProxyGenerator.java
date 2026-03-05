@@ -24,18 +24,11 @@ public class FieldProxyGenerator implements ProxyGenerator {
 
         StringBuilder sb = new StringBuilder();
 
-        String junkCode = "";
-        if (Math.random() > 0.3) {
-            junkCode = "        int junk = " + (int)(Math.random() * 1000) + ";\n" +
-                       "        junk = junk * " + (int)(Math.random() * 50) + ";\n" +
-                       "        if (junk < 0) { junk = 0; }\n";
-        }
-
         sb.append("public class ").append(className).append(" {\n");
 
         // GET
         sb.append("    public static Object get(Object target) throws Exception {\n");
-        sb.append(junkCode);
+        sb.append(JunkCodeGenerator.generate());
         sb.append("        Class<?> clazz = Class.forName(\"").append(fieldData.getClassName()).append("\");\n");
         if (useMethodHandlesForGet) {
             sb.append("        try {\n");
@@ -61,7 +54,7 @@ public class FieldProxyGenerator implements ProxyGenerator {
 
         // SET
         sb.append("    public static void set(Object target, Object value) throws Exception {\n");
-        sb.append(junkCode);
+        sb.append(JunkCodeGenerator.generate());
         sb.append("        Class<?> clazz = Class.forName(\"").append(fieldData.getClassName()).append("\");\n");
         if (useMethodHandlesForSet) {
             sb.append("        try {\n");

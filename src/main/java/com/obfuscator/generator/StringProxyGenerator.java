@@ -17,6 +17,7 @@ public class StringProxyGenerator implements ProxyGenerator {
         StringBuilder sb = new StringBuilder();
         sb.append("public class ").append(className).append(" {\n");
         sb.append("    public static String get() {\n");
+        sb.append(JunkCodeGenerator.generate());
 
         if (Math.random() > 0.5) {
             // Generate Base64 decryption logic
