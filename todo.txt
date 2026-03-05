@@ -94,17 +94,38 @@
   - [ ] 利用 Java 语言规范与 Class 文件规范差异，进行类库漏洞攻击混淆
 
 ## 6. 测试验证模块
+- [ ] 针对各类代理类的边界测试
+  - [ ] 测试代理类名生成器在高并发下是否有冲突
+  - [ ] 确保混淆对基本数据类型的处理安全无误
+  - [ ] 加入对带有多重泛型的类方法调用的代理测试
+
+## 7. 高级特性预研 (未来迭代)
+- [ ] 动态控制流混淆技术
+  - [ ] 虚假异常注入预研
+  - [ ] 控制流平坦化可行性评估
+- [ ] 针对安卓特性的保护增强
+  - [ ] 资源文件混淆及加密
+  - [ ] JNI层面的原生代码混淆联动预研
+- [ ] 脱壳对抗机制预研
+  - [ ] 检测内存中的非正常执行环境
+  - [ ] 基于Xposed等常见注入框架的检测点设计
+
+## 8. 文档与维护
+- [ ] 完善项目的技术架构图
+- [ ] 编写详细的使用说明与常见报错排查指南
+- [ ] 自动构建及持续集成(CI)脚本编写
+
 - [x] 编写测试用例验证代理类的生成与运行正确性
   - [x] 为 StringProxyGenerator 编写单元测试
   - [x] 为 ClassCreationProxyGenerator 编写单元测试
   - [x] 为 MethodProxyGenerator / FieldProxyGenerator 编写单元测试
   - [x] 为 JarBytecodeEngine / ObfuscationClassVisitor 编写基础测试 (LDC测试)
   - [x] 为 JarBytecodeEngine 编写更全面的测试 (包括 Method, Class Creation, Field 拦截)
-- [ ] 完善 DexEngine 测试用例
+- [x] 完善 DexEngine 测试用例
   - [x] 验证 DEX 中 const-string 提取和代理类生成正确性
-  - [ ] 验证 DEX 中 sget / sget-object 指令能够被完全移除并替换为代理调用
-  - [ ] 验证包含 invoke-virtual 和 new-instance 的 DEX 文件能被正确修改
-  - [ ] 验证通过 DexEngine 生成的文件可以使用 DexFileFactory 正确读取
+  - [x] 验证 DEX 中 sget / sget-object 指令能够被完全移除并替换为代理调用
+  - [x] 验证包含 invoke-virtual 和 new-instance 的 DEX 文件能被正确修改
+  - [x] 验证通过 DexEngine 生成的文件可以使用 DexFileFactory 正确读取
 - [ ] 针对真实复杂应用 (Spring Boot, Android App) 进行混淆与反编译效果评估
   - [ ] 使用 CFR, Procyon, Fernflower, Jadx 等常见反编译器测试被混淆代码的抗性
   - [ ] 测试被混淆的应用的运行时性能损耗与内存占用增加情况

@@ -45,7 +45,27 @@ public class DexBytecodeEngineTest {
         assertTrue(tempOutputDex.exists(), "Output DEX should be created");
         assertTrue(tempOutputDex.length() > 0, "Output DEX should not be empty");
 
-        // MVP: We only assert output dex creation for methods since we haven't implemented full invoke- rewriting yet.
+        // Memory rule: The interception of NEW_INSTANCE, INVOKE_* is skipped.
+        // We verify that the DEX is syntactically valid by parsing it and ensure
+        // original instructions like INVOKE_VIRTUAL are still present.
+        DexFile outDex = DexFileFactory.loadDexFile(tempOutputDex, Opcodes.getDefault());
+        boolean hasInvokeVirtual = false;
+
+        for (ClassDef classDef : outDex.getClasses()) {
+            if (classDef.getType().contains("DummyDexMethodTestClass")) {
+                for (Method method : classDef.getMethods()) {
+                    if (method.getName().equals("callMethod") && method.getImplementation() != null) {
+                        for (Instruction instruction : method.getImplementation().getInstructions()) {
+                            if (instruction.getOpcode() == org.jf.dexlib2.Opcode.INVOKE_STATIC ||
+                                instruction.getOpcode() == org.jf.dexlib2.Opcode.INVOKE_VIRTUAL) {
+                                hasInvokeVirtual = true;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        assertTrue(hasInvokeVirtual, "INVOKE instructions should remain intact as per memory rules.");
     }
 
     @Test
@@ -78,9 +98,31 @@ public class DexBytecodeEngineTest {
         assertTrue(tempOutputDex.exists(), "Output DEX should be created");
         assertTrue(tempOutputDex.length() > 0, "Output DEX should not be empty");
 
-        // We only assert dex was created successfully. Parsing dex here accurately to find the absence of
-        // the SGET_OBJECT instruction can be flaky depending on how D8 reorganizes or inline constants.
-        // For our MVP, we know the interception logic is executed, so we consider it complete.
+        DexFile outDex = DexFileFactory.loadDexFile(tempOutputDex, Opcodes.getDefault());
+        boolean hasSget = false;
+        boolean hasInvokeStatic = false;
+
+        for (ClassDef classDef : outDex.getClasses()) {
+            if (classDef.getType().contains("DummyDexFieldTestClass")) {
+                for (Method method : classDef.getMethods()) {
+                    if (method.getName().equals("getField") && method.getImplementation() != null) {
+                        for (Instruction instruction : method.getImplementation().getInstructions()) {
+                            System.out.println("Instruction opcode in getField: " + instruction.getOpcode().name());
+                            if (instruction.getOpcode() == org.jf.dexlib2.Opcode.SGET ||
+                                instruction.getOpcode() == org.jf.dexlib2.Opcode.SGET_OBJECT) {
+                                hasSget = true;
+                            }
+                            if (instruction.getOpcode() == org.jf.dexlib2.Opcode.INVOKE_STATIC) {
+                                hasInvokeStatic = true;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        assertFalse(hasSget, "The sget / sget-object instruction must be entirely removed and replaced with proxy invoke in DEX.");
+        assertTrue(hasInvokeStatic, "An invoke-static instruction should be present to call the proxy.");
     }
 
     @Test
@@ -111,6 +153,24 @@ public class DexBytecodeEngineTest {
 
         assertTrue(tempOutputDex.exists(), "Output DEX should be created");
         assertTrue(tempOutputDex.length() > 0, "Output DEX should not be empty");
+
+        DexFile outDex = DexFileFactory.loadDexFile(tempOutputDex, Opcodes.getDefault());
+        boolean hasNewInstance = false;
+
+        for (ClassDef classDef : outDex.getClasses()) {
+            if (classDef.getType().contains("DummyDexClassCreationTestClass")) {
+                for (Method method : classDef.getMethods()) {
+                    if (method.getName().equals("createClass") && method.getImplementation() != null) {
+                        for (Instruction instruction : method.getImplementation().getInstructions()) {
+                            if (instruction.getOpcode() == org.jf.dexlib2.Opcode.NEW_INSTANCE) {
+                                hasNewInstance = true;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        assertTrue(hasNewInstance, "NEW_INSTANCE instructions should remain intact as per memory rules.");
     }
 
     @Test
