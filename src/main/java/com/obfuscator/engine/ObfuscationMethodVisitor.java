@@ -28,6 +28,18 @@ public class ObfuscationMethodVisitor extends MethodNode {
         while (iterator.hasNext()) {
             AbstractInsnNode insn = iterator.next();
 
+            // Insert flower instructions randomly (approx 10% chance per instruction)
+            if (Math.random() < 0.1) {
+                if (Math.random() > 0.5) {
+                    instructions.insertBefore(insn, new InsnNode(Opcodes.NOP));
+                } else {
+                    InsnList junkInstructions = new InsnList();
+                    junkInstructions.add(new InsnNode(Opcodes.ICONST_0));
+                    junkInstructions.add(new InsnNode(Opcodes.POP));
+                    instructions.insertBefore(insn, junkInstructions);
+                }
+            }
+
             if (insn.getType() == AbstractInsnNode.TYPE_INSN && insn.getOpcode() == Opcodes.NEW) {
                 // We check if this is part of NEW -> DUP -> ... -> INVOKESPECIAL <init>
                 TypeInsnNode newInsn = (TypeInsnNode) insn;

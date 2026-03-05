@@ -21,23 +21,8 @@ public class ControlFlowProxyGenerator implements ProxyGenerator {
         StringBuilder sb = new StringBuilder();
         sb.append("public class ").append(className).append(" {\n");
 
-        // Helper function for flower instructions (junk code)
-        String junkCode = "";
-        double rand = Math.random();
-        if (rand < 0.3) {
-            junkCode = "        int junk = " + (int)(Math.random() * 1000) + ";\n" +
-                       "        junk = junk * " + (int)(Math.random() * 50) + ";\n" +
-                       "        if (junk < 0) { junk = 0; }\n";
-        } else if (rand < 0.6) {
-            junkCode = "        String dummy = \"\" + " + (int)(Math.random() * 1000) + ";\n" +
-                       "        if (dummy.length() > 10) { dummy = \"\"; }\n";
-        } else if (rand < 0.9) {
-            junkCode = "        long x = System.currentTimeMillis();\n" +
-                       "        if (x < 0) { return false; }\n";
-        }
-
         sb.append("    public static boolean eval(String op, int a, int b) {\n");
-        sb.append(junkCode);
+        sb.append(JunkCodeGenerator.generate());
         sb.append("        switch (op) {\n");
         sb.append("            case \"==\": return a == b;\n");
         sb.append("            case \"!=\": return a != b;\n");
@@ -50,7 +35,7 @@ public class ControlFlowProxyGenerator implements ProxyGenerator {
         sb.append("    }\n\n");
 
         sb.append("    public static boolean eval(String op, Object a, Object b) {\n");
-        sb.append(junkCode);
+        sb.append(JunkCodeGenerator.generate());
         sb.append("        switch (op) {\n");
         sb.append("            case \"==\": return a == b;\n");
         sb.append("            case \"!=\": return a != b;\n");
