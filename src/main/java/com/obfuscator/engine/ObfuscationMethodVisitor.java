@@ -25,6 +25,14 @@ public class ObfuscationMethodVisitor extends MethodNode {
     @Override
     public void visitEnd() {
         if (!name.equals("<init>") && !name.equals("<clinit>") && instructions.size() > 0) {
+            boolean virtualized = virtualizeMethod();
+            if (virtualized) {
+                super.visitEnd();
+                if (nextVisitor != null) {
+                    accept(nextVisitor);
+                }
+                return;
+            }
             flattenControlFlow();
         }
 
@@ -552,6 +560,74 @@ public class ObfuscationMethodVisitor extends MethodNode {
         }
     }
 
+    private boolean virtualizeMethod() {
+        // Ensure method has no try-catch blocks
+        if (!tryCatchBlocks.isEmpty()) return false;
+
+        java.util.List<Byte> vmCode = new java.util.ArrayList<>();
+
+        for (AbstractInsnNode insn : instructions) {
+            if (insn.getType() == AbstractInsnNode.LABEL || insn.getType() == AbstractInsnNode.LINE) {
+                continue;
+            }
+            int opcode = insn.getOpcode();
+            if (opcode >= Opcodes.ICONST_M1 && opcode <= Opcodes.ICONST_5) {
+                vmCode.add((byte) 0x01); // PUSH
+                int val = opcode - Opcodes.ICONST_0;
+                vmCode.add((byte) ((val >> 24) & 0xFF));
+                vmCode.add((byte) ((val >> 16) & 0xFF));
+                vmCode.add((byte) ((val >> 8) & 0xFF));
+                vmCode.add((byte) (val & 0xFF));
+            } else if (opcode == Opcodes.BIPUSH || opcode == Opcodes.SIPUSH) {
+                vmCode.add((byte) 0x01); // PUSH
+                int val = ((IntInsnNode) insn).operand;
+                vmCode.add((byte) ((val >> 24) & 0xFF));
+                vmCode.add((byte) ((val >> 16) & 0xFF));
+                vmCode.add((byte) ((val >> 8) & 0xFF));
+                vmCode.add((byte) (val & 0xFF));
+            } else if (opcode == Opcodes.IADD) {
+                vmCode.add((byte) 0x02); // ADD
+            } else if (opcode == Opcodes.ISUB) {
+                vmCode.add((byte) 0x03); // SUB
+            } else if (opcode == Opcodes.IMUL) {
+                vmCode.add((byte) 0x04); // MUL
+            } else if (opcode == Opcodes.IRETURN) {
+                vmCode.add((byte) 0x05); // RET
+            } else {
+                // Unsupported opcode for our simple VM
+                return false;
+            }
+        }
+
+        // Successfully virtualized. We will now replace the method instructions.
+        instructions.clear();
+
+        byte[] finalCode = new byte[vmCode.size()];
+        for (int i = 0; i < vmCode.size(); i++) {
+            finalCode[i] = vmCode.get(i);
+        }
+
+        // Generate bytecode to push the finalCode byte array
+        pushInt(instructions, finalCode.length);
+        instructions.add(new IntInsnNode(Opcodes.NEWARRAY, Opcodes.T_BYTE));
+
+        for (int i = 0; i < finalCode.length; i++) {
+            instructions.add(new InsnNode(Opcodes.DUP));
+            pushInt(instructions, i);
+            pushInt(instructions, finalCode[i]);
+            instructions.add(new InsnNode(Opcodes.BASTORE));
+        }
+
+        // Call the VM execute method
+        instructions.add(new MethodInsnNode(Opcodes.INVOKESTATIC, "com/obfuscator/vm/VirtualMachine", "execute", "([B)I", false));
+        instructions.add(new InsnNode(Opcodes.IRETURN));
+
+        maxStack = 4; // sufficient for array allocation and pushing
+        maxLocals = 0; // we use no locals
+
+        return true;
+    }
+
     private void flattenControlFlow() {
         // Find maximum local variables index so we can allocate a variable for the state
         int tempVarIndex = maxLocals;
@@ -565,106 +641,191 @@ public class ObfuscationMethodVisitor extends MethodNode {
             }
         }
 
-        // This is a very simplistic view of control flow flattening intended to meet basic obfuscation criteria.
-        // True control flow flattening requires full CFG analysis, breaking into basic blocks, handling exceptions,
-        // updating local variables scope, and stack map frames.
-        // For the scope of this extreme obfuscator test, we apply a simulated "switch machine" wrapper.
-        // To avoid breaking complex ASM structures and test cases, we use a basic switch machine that just executes the entire method
-        // in one block, but gives the appearance of a switch dispatcher.
-
         if (instructions.size() < 10) return; // Skip too simple methods
+
+        // Check if method is suitable for real basic block splitting CFF
+        // It must not have try-catch blocks or existing jump instructions to avoid breaking verifier or ASM
+        boolean canSplit = tryCatchBlocks.isEmpty();
+        if (canSplit) {
+            for (AbstractInsnNode node : instructions) {
+                if (node instanceof JumpInsnNode || node instanceof LabelNode || node instanceof LookupSwitchInsnNode || node instanceof TableSwitchInsnNode) {
+                    canSplit = false;
+                    break;
+                }
+            }
+        }
 
         int stateLocal = tempVarIndex;
         maxLocals = stateLocal + 1;
 
         LabelNode loopStart = new LabelNode();
         LabelNode loopEnd = new LabelNode();
-        LabelNode case1 = new LabelNode(); // Trampoline 1
-        LabelNode case2 = new LabelNode(); // Trampoline 2
-        LabelNode case3 = new LabelNode(); // Trampoline 3
-        LabelNode case4 = new LabelNode(); // The actual method code
         LabelNode defaultCase = new LabelNode();
 
-        int state1;
-        int state2;
-        int state3;
-        int state4;
+        if (canSplit) {
+            // Real Control Flow Flattening (Basic Block Splitting)
+            java.util.List<InsnList> blocks = new java.util.ArrayList<>();
+            InsnList currentBlock = new InsnList();
+            int insnCount = 0;
 
-        while (true) {
-            int seed = java.util.concurrent.ThreadLocalRandom.current().nextInt(100, 1000);
-            state1 = seed;
-            state2 = (state1 ^ 0x5a) + 0x11;
-            state3 = (state2 ^ 0xc3) - 0x05;
-            state4 = (state3 ^ 0x0f) + 0x22;
-
-            if (state1 != state2 && state1 != state3 && state1 != state4 &&
-                state2 != state3 && state2 != state4 &&
-                state3 != state4) {
-                break;
-            }
-        }
-
-        InsnList prelude = new InsnList();
-        pushInt(prelude, state1);
-        prelude.add(new VarInsnNode(Opcodes.ISTORE, stateLocal));
-        prelude.add(loopStart);
-        prelude.add(new VarInsnNode(Opcodes.ILOAD, stateLocal));
-
-        // lookup switch with randomized values
-        int[] keys = new int[] { state1, state2, state3, state4 };
-        LabelNode[] handlers = new LabelNode[] { case1, case2, case3, case4 };
-
-        // Sort keys and handlers for LookupSwitchInsnNode
-        for (int i = 0; i < keys.length - 1; i++) {
-            for (int j = 0; j < keys.length - i - 1; j++) {
-                if (keys[j] > keys[j + 1]) {
-                    int tempKey = keys[j];
-                    keys[j] = keys[j + 1];
-                    keys[j + 1] = tempKey;
-
-                    LabelNode tempHandler = handlers[j];
-                    handlers[j] = handlers[j + 1];
-                    handlers[j + 1] = tempHandler;
+            for (AbstractInsnNode node : instructions) {
+                instructions.remove(node);
+                currentBlock.add(node);
+                insnCount++;
+                // Split every 3 instructions, or if it's a return instruction
+                if (insnCount >= 3 || node.getOpcode() == Opcodes.IRETURN || node.getOpcode() == Opcodes.RETURN || node.getOpcode() == Opcodes.ARETURN || node.getOpcode() == Opcodes.LRETURN || node.getOpcode() == Opcodes.DRETURN || node.getOpcode() == Opcodes.ATHROW) {
+                    blocks.add(currentBlock);
+                    currentBlock = new InsnList();
+                    insnCount = 0;
                 }
             }
+            if (currentBlock.size() > 0) {
+                blocks.add(currentBlock);
+            }
+
+            int numBlocks = blocks.size();
+            int[] states = new int[numBlocks + 1]; // +1 for end state
+            java.util.Set<Integer> usedStates = new java.util.HashSet<>();
+            for (int i = 0; i <= numBlocks; i++) {
+                int state;
+                do {
+                    state = java.util.concurrent.ThreadLocalRandom.current().nextInt(1000, 10000);
+                } while (!usedStates.add(state));
+                states[i] = state;
+            }
+
+            InsnList prelude = new InsnList();
+            pushInt(prelude, states[0]);
+            prelude.add(new VarInsnNode(Opcodes.ISTORE, stateLocal));
+            prelude.add(loopStart);
+            prelude.add(new VarInsnNode(Opcodes.ILOAD, stateLocal));
+
+            int[] keys = new int[numBlocks];
+            LabelNode[] handlers = new LabelNode[numBlocks];
+
+            for (int i = 0; i < numBlocks; i++) {
+                keys[i] = states[i];
+                handlers[i] = new LabelNode();
+            }
+
+            // Sort keys and handlers for LookupSwitchInsnNode
+            int[] sortedKeys = keys.clone();
+            LabelNode[] sortedHandlers = handlers.clone();
+            for (int i = 0; i < sortedKeys.length - 1; i++) {
+                for (int j = 0; j < sortedKeys.length - i - 1; j++) {
+                    if (sortedKeys[j] > sortedKeys[j + 1]) {
+                        int tempKey = sortedKeys[j];
+                        sortedKeys[j] = sortedKeys[j + 1];
+                        sortedKeys[j + 1] = tempKey;
+
+                        LabelNode tempHandler = sortedHandlers[j];
+                        sortedHandlers[j] = sortedHandlers[j + 1];
+                        sortedHandlers[j + 1] = tempHandler;
+                    }
+                }
+            }
+
+            prelude.add(new LookupSwitchInsnNode(defaultCase, sortedKeys, sortedHandlers));
+            instructions.add(prelude);
+
+            for (int i = 0; i < numBlocks; i++) {
+                instructions.add(handlers[i]);
+                instructions.add(blocks.get(i));
+
+                // If the block doesn't end with a return/throw, transition to next state
+                AbstractInsnNode last = blocks.get(i).getLast();
+                int op = last != null ? last.getOpcode() : -1;
+                if (op != Opcodes.IRETURN && op != Opcodes.RETURN && op != Opcodes.ARETURN && op != Opcodes.LRETURN && op != Opcodes.DRETURN && op != Opcodes.ATHROW) {
+                    pushInt(instructions, states[i + 1]);
+                    instructions.add(new VarInsnNode(Opcodes.ISTORE, stateLocal));
+                    instructions.add(new JumpInsnNode(Opcodes.GOTO, loopStart));
+                }
+            }
+        } else {
+            // Fallback to simple simulated switch wrapper
+            LabelNode case1 = new LabelNode(); // Trampoline 1
+            LabelNode case2 = new LabelNode(); // Trampoline 2
+            LabelNode case3 = new LabelNode(); // Trampoline 3
+            LabelNode case4 = new LabelNode(); // The actual method code
+
+            int state1, state2, state3, state4;
+
+            while (true) {
+                int seed = java.util.concurrent.ThreadLocalRandom.current().nextInt(100, 1000);
+                state1 = seed;
+                state2 = (state1 ^ 0x5a) + 0x11;
+                state3 = (state2 ^ 0xc3) - 0x05;
+                state4 = (state3 ^ 0x0f) + 0x22;
+
+                if (state1 != state2 && state1 != state3 && state1 != state4 &&
+                    state2 != state3 && state2 != state4 &&
+                    state3 != state4) {
+                    break;
+                }
+            }
+
+            InsnList prelude = new InsnList();
+            pushInt(prelude, state1);
+            prelude.add(new VarInsnNode(Opcodes.ISTORE, stateLocal));
+            prelude.add(loopStart);
+            prelude.add(new VarInsnNode(Opcodes.ILOAD, stateLocal));
+
+            // lookup switch with randomized values
+            int[] keys = new int[] { state1, state2, state3, state4 };
+            LabelNode[] handlers = new LabelNode[] { case1, case2, case3, case4 };
+
+            // Sort keys and handlers for LookupSwitchInsnNode
+            for (int i = 0; i < keys.length - 1; i++) {
+                for (int j = 0; j < keys.length - i - 1; j++) {
+                    if (keys[j] > keys[j + 1]) {
+                        int tempKey = keys[j];
+                        keys[j] = keys[j + 1];
+                        keys[j + 1] = tempKey;
+
+                        LabelNode tempHandler = handlers[j];
+                        handlers[j] = handlers[j + 1];
+                        handlers[j + 1] = tempHandler;
+                    }
+                }
+            }
+
+            prelude.add(new LookupSwitchInsnNode(defaultCase, keys, handlers));
+
+            // Case 1: Transition to state2
+            prelude.add(case1);
+            prelude.add(new VarInsnNode(Opcodes.ILOAD, stateLocal));
+            pushInt(prelude, 0x5a);
+            prelude.add(new InsnNode(Opcodes.IXOR));
+            pushInt(prelude, 0x11);
+            prelude.add(new InsnNode(Opcodes.IADD));
+            prelude.add(new VarInsnNode(Opcodes.ISTORE, stateLocal));
+            prelude.add(new JumpInsnNode(Opcodes.GOTO, loopStart));
+
+            // Case 2: Transition to state3
+            prelude.add(case2);
+            prelude.add(new VarInsnNode(Opcodes.ILOAD, stateLocal));
+            pushInt(prelude, 0xc3);
+            prelude.add(new InsnNode(Opcodes.IXOR));
+            pushInt(prelude, 0x05);
+            prelude.add(new InsnNode(Opcodes.ISUB));
+            prelude.add(new VarInsnNode(Opcodes.ISTORE, stateLocal));
+            prelude.add(new JumpInsnNode(Opcodes.GOTO, loopStart));
+
+            // Case 3: Transition to state4
+            prelude.add(case3);
+            prelude.add(new VarInsnNode(Opcodes.ILOAD, stateLocal));
+            pushInt(prelude, 0x0f);
+            prelude.add(new InsnNode(Opcodes.IXOR));
+            pushInt(prelude, 0x22);
+            prelude.add(new InsnNode(Opcodes.IADD));
+            prelude.add(new VarInsnNode(Opcodes.ISTORE, stateLocal));
+            prelude.add(new JumpInsnNode(Opcodes.GOTO, loopStart));
+
+            // Case 4: The actual method code
+            prelude.add(case4);
+
+            instructions.insert(prelude);
         }
-
-        prelude.add(new LookupSwitchInsnNode(defaultCase, keys, handlers));
-
-        // Case 1: Transition to state2
-        prelude.add(case1);
-        prelude.add(new VarInsnNode(Opcodes.ILOAD, stateLocal));
-        pushInt(prelude, 0x5a);
-        prelude.add(new InsnNode(Opcodes.IXOR));
-        pushInt(prelude, 0x11);
-        prelude.add(new InsnNode(Opcodes.IADD));
-        prelude.add(new VarInsnNode(Opcodes.ISTORE, stateLocal));
-        prelude.add(new JumpInsnNode(Opcodes.GOTO, loopStart));
-
-        // Case 2: Transition to state3
-        prelude.add(case2);
-        prelude.add(new VarInsnNode(Opcodes.ILOAD, stateLocal));
-        pushInt(prelude, 0xc3);
-        prelude.add(new InsnNode(Opcodes.IXOR));
-        pushInt(prelude, 0x05);
-        prelude.add(new InsnNode(Opcodes.ISUB));
-        prelude.add(new VarInsnNode(Opcodes.ISTORE, stateLocal));
-        prelude.add(new JumpInsnNode(Opcodes.GOTO, loopStart));
-
-        // Case 3: Transition to state4
-        prelude.add(case3);
-        prelude.add(new VarInsnNode(Opcodes.ILOAD, stateLocal));
-        pushInt(prelude, 0x0f);
-        prelude.add(new InsnNode(Opcodes.IXOR));
-        pushInt(prelude, 0x22);
-        prelude.add(new InsnNode(Opcodes.IADD));
-        prelude.add(new VarInsnNode(Opcodes.ISTORE, stateLocal));
-        prelude.add(new JumpInsnNode(Opcodes.GOTO, loopStart));
-
-        // Case 4: The actual method code
-        prelude.add(case4);
-
-        instructions.insert(prelude);
 
         // Default case (exit loop, though the method code should have returned)
         InsnList epilogue = new InsnList();

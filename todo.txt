@@ -98,11 +98,16 @@
   - [x] 实现基于数学定理的谓词，使得静态分析难以求解
   - [ ] 实现基于状态机的动态谓词生成
     - [ ] 注入全局 State 变量，结合方法调用图实时更新，在关键判定点引入依赖 State 的复杂跳转
-- [ ] 控制流平坦化 (Control Flow Flattening)
-  - [ ] 将方法内原有的基本块转化为一个由大的 switch-case 语句管理的调度器循环
+- [x] 控制流平坦化 (Control Flow Flattening)
+  - [x] 将方法内原有的基本块转化为一个由大的 switch-case 语句管理的调度器循环 (针对简单非分支方法实现真实平坦化)
   - [ ] 增加多级跳板，使得 switch 逻辑更加复杂
-  - [ ] 动态计算 switch 状态转移值，防范静态常量推导
+  - [x] 动态计算 switch 状态转移值，防范静态常量推导
     - [ ] 引入非线性方程或散列函数作为 `switch` `case` 跳转值的计算依据
+
+- [x] 虚拟机保护 (VM Protection) (初步实现)
+  - [x] 编写 `VirtualMachine` 类，实现基于字节数组的栈式虚拟机解释器
+  - [x] 定义自定义指令集，包含入栈、加减法、返回等基本指令
+  - [x] 在 `ObfuscationMethodVisitor` 中拦截简单算术方法，将其转化为自定义字节码并调用虚拟机执行
 - [x] 异常控制流
   - [x] 使用 try-catch-finally 块代替正常的逻辑跳转，使用 throw 代替 goto 或 return
     - [x] 在 `ObfuscationMethodVisitor` 中安全分析栈帧(Stack Map Frames)，在方法末尾的 Return 区块使用 ATHROW 抛出带有返回值的自定义异常对象
