@@ -8,6 +8,7 @@ import java.net.URI;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Compiles Java source strings in memory and provides the resulting bytecode.
@@ -15,7 +16,7 @@ import java.util.Map;
 public class InMemoryCompiler {
 
     private final JavaCompiler compiler;
-    private final Map<String, byte[]> compiledClasses = new HashMap<>();
+    private final Map<String, byte[]> compiledClasses = new ConcurrentHashMap<>();
     private final StandardJavaFileManager standardFileManager;
 
     public InMemoryCompiler() {
@@ -32,7 +33,7 @@ public class InMemoryCompiler {
      * @param className  The full name of the class (e.g., "MyProxy").
      * @param sourceCode The Java source code.
      */
-    public void compile(String className, String sourceCode) {
+    public synchronized void compile(String className, String sourceCode) {
         JavaFileObject sourceObj = new StringSourceJavaFileObject(className, sourceCode);
         MemoryJavaFileManager fileManager = new MemoryJavaFileManager(standardFileManager);
 
