@@ -184,7 +184,41 @@ public class ObfuscationMethodVisitor extends MethodNode {
                 }
             }
 
-            if (insn.getType() == AbstractInsnNode.LDC_INSN) {
+            if (insn.getOpcode() == Opcodes.IADD) {
+                // Instruction Substitution: a + b -> a - (~b) - 1
+                InsnList subList = new InsnList();
+                subList.add(new InsnNode(Opcodes.ICONST_M1));
+                subList.add(new InsnNode(Opcodes.IXOR)); // ~b
+                subList.add(new InsnNode(Opcodes.ISUB)); // a - (~b)
+                subList.add(new InsnNode(Opcodes.ICONST_1));
+                subList.add(new InsnNode(Opcodes.ISUB)); // a - (~b) - 1
+
+                iterator.remove();
+                AbstractInsnNode nextNode = iterator.hasNext() ? iterator.next() : null;
+                if (nextNode != null) {
+                    instructions.insertBefore(nextNode, subList);
+                    iterator.previous();
+                } else {
+                    instructions.add(subList);
+                }
+            } else if (insn.getOpcode() == Opcodes.ISUB) {
+                // Instruction Substitution: a - b -> a + (~b) + 1
+                InsnList subList = new InsnList();
+                subList.add(new InsnNode(Opcodes.ICONST_M1));
+                subList.add(new InsnNode(Opcodes.IXOR)); // ~b
+                subList.add(new InsnNode(Opcodes.IADD)); // a + (~b)
+                subList.add(new InsnNode(Opcodes.ICONST_1));
+                subList.add(new InsnNode(Opcodes.IADD)); // a + (~b) + 1
+
+                iterator.remove();
+                AbstractInsnNode nextNode = iterator.hasNext() ? iterator.next() : null;
+                if (nextNode != null) {
+                    instructions.insertBefore(nextNode, subList);
+                    iterator.previous();
+                } else {
+                    instructions.add(subList);
+                }
+            } else if (insn.getType() == AbstractInsnNode.LDC_INSN) {
                 LdcInsnNode ldcInsn = (LdcInsnNode) insn;
                 if (ldcInsn.cst instanceof String) {
                     String originalString = (String) ldcInsn.cst;
@@ -194,6 +228,60 @@ public class ObfuscationMethodVisitor extends MethodNode {
                     String internalName = proxyClassName.replace('.', '/');
                     MethodInsnNode proxyCall = new MethodInsnNode(Opcodes.INVOKESTATIC, internalName, "get", "()Ljava/lang/String;", false);
                     iterator.set(proxyCall);
+                } else if (ldcInsn.cst instanceof Integer) {
+                    int val = (Integer) ldcInsn.cst;
+                    int key = java.util.concurrent.ThreadLocalRandom.current().nextInt();
+                    int xored = val ^ key;
+
+                    InsnList numList = new InsnList();
+                    pushInt(numList, xored);
+                    pushInt(numList, key);
+                    numList.add(new InsnNode(Opcodes.IXOR));
+
+                    iterator.remove();
+                    AbstractInsnNode nextNode = iterator.hasNext() ? iterator.next() : null;
+                    if (nextNode != null) {
+                        instructions.insertBefore(nextNode, numList);
+                        iterator.previous();
+                    } else {
+                        instructions.add(numList);
+                    }
+                }
+            } else if (insn.getOpcode() == Opcodes.BIPUSH || insn.getOpcode() == Opcodes.SIPUSH) {
+                int val = ((IntInsnNode) insn).operand;
+                int key = java.util.concurrent.ThreadLocalRandom.current().nextInt();
+                int xored = val ^ key;
+
+                InsnList numList = new InsnList();
+                pushInt(numList, xored);
+                pushInt(numList, key);
+                numList.add(new InsnNode(Opcodes.IXOR));
+
+                iterator.remove();
+                AbstractInsnNode nextNode = iterator.hasNext() ? iterator.next() : null;
+                if (nextNode != null) {
+                    instructions.insertBefore(nextNode, numList);
+                    iterator.previous();
+                } else {
+                    instructions.add(numList);
+                }
+            } else if (insn.getOpcode() >= Opcodes.ICONST_M1 && insn.getOpcode() <= Opcodes.ICONST_5) {
+                int val = insn.getOpcode() - Opcodes.ICONST_0;
+                int key = java.util.concurrent.ThreadLocalRandom.current().nextInt();
+                int xored = val ^ key;
+
+                InsnList numList = new InsnList();
+                pushInt(numList, xored);
+                pushInt(numList, key);
+                numList.add(new InsnNode(Opcodes.IXOR));
+
+                iterator.remove();
+                AbstractInsnNode nextNode = iterator.hasNext() ? iterator.next() : null;
+                if (nextNode != null) {
+                    instructions.insertBefore(nextNode, numList);
+                    iterator.previous();
+                } else {
+                    instructions.add(numList);
                 }
             } else if (insn.getType() == AbstractInsnNode.METHOD_INSN) {
                 MethodInsnNode methodInsn = (MethodInsnNode) insn;
@@ -499,7 +587,7 @@ public class ObfuscationMethodVisitor extends MethodNode {
         InsnList opaqueList = new InsnList();
         LabelNode trueLabel = new LabelNode();
 
-        int choice = java.util.concurrent.ThreadLocalRandom.current().nextInt(3);
+        int choice = java.util.concurrent.ThreadLocalRandom.current().nextInt(5);
         int randVal = java.util.concurrent.ThreadLocalRandom.current().nextInt(10, 100);
 
         if (choice == 0) {
@@ -520,11 +608,22 @@ public class ObfuscationMethodVisitor extends MethodNode {
             pushInt(opaqueList, 2);
             opaqueList.add(new InsnNode(Opcodes.IREM));
             opaqueList.add(new JumpInsnNode(Opcodes.IFEQ, trueLabel));
-        } else {
+        } else if (choice == 2) {
             // (x * 0) == 0
             pushInt(opaqueList, randVal);
             pushInt(opaqueList, 0);
             opaqueList.add(new InsnNode(Opcodes.IMUL));
+            opaqueList.add(new JumpInsnNode(Opcodes.IFEQ, trueLabel));
+        } else if (choice == 3) {
+            // x > -1 (where x is a positive random value)
+            pushInt(opaqueList, randVal);
+            pushInt(opaqueList, -1);
+            opaqueList.add(new JumpInsnNode(Opcodes.IF_ICMPGT, trueLabel));
+        } else {
+            // (x ^ x) == 0
+            pushInt(opaqueList, randVal);
+            pushInt(opaqueList, randVal);
+            opaqueList.add(new InsnNode(Opcodes.IXOR));
             opaqueList.add(new JumpInsnNode(Opcodes.IFEQ, trueLabel));
         }
 
@@ -611,6 +710,12 @@ public class ObfuscationMethodVisitor extends MethodNode {
                 vmCode.add((byte) 0x04); // MUL
             } else if (opcode == Opcodes.IRETURN) {
                 vmCode.add((byte) 0x05); // RET
+            } else if (opcode == Opcodes.IAND) {
+                vmCode.add((byte) 0x06); // AND
+            } else if (opcode == Opcodes.IOR) {
+                vmCode.add((byte) 0x07); // OR
+            } else if (opcode == Opcodes.IXOR) {
+                vmCode.add((byte) 0x08); // XOR
             } else {
                 // Unsupported opcode for our simple VM
                 return false;
@@ -824,7 +929,15 @@ public class ObfuscationMethodVisitor extends MethodNode {
                 AbstractInsnNode last = blocks.get(i).getLast();
                 int op = last != null ? last.getOpcode() : -1;
                 if (op != Opcodes.IRETURN && op != Opcodes.RETURN && op != Opcodes.ARETURN && op != Opcodes.LRETURN && op != Opcodes.DRETURN && op != Opcodes.ATHROW) {
-                    pushInt(instructions, states[i + 1]);
+
+                    int nextState = states[i + 1];
+                    int xorKey = java.util.concurrent.ThreadLocalRandom.current().nextInt(1, 10000);
+                    int xoredState = nextState ^ xorKey;
+
+                    pushInt(instructions, xoredState);
+                    pushInt(instructions, xorKey);
+                    instructions.add(new InsnNode(Opcodes.IXOR));
+
                     instructions.add(new VarInsnNode(Opcodes.ISTORE, stateLocal));
                     instructions.add(new JumpInsnNode(Opcodes.GOTO, loopStart));
                 }
