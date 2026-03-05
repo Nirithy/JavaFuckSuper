@@ -58,6 +58,60 @@ public class JarBytecodeEngineTest {
     }
 
     @Test
+    public void testControlFlowObfuscation() throws Exception {
+        File tempInputJar = File.createTempFile("test-input-cf", ".jar");
+        tempInputJar.deleteOnExit();
+
+        File tempOutputJar = File.createTempFile("test-output-cf", ".jar");
+        tempOutputJar.deleteOnExit();
+
+        String testClassName = "ControlFlowTestClass";
+        String testSource = "public class ControlFlowTestClass {\n" +
+                            "    public boolean compareInts(int a, int b) {\n" +
+                            "        if (a == b) return true;\n" +
+                            "        return false;\n" +
+                            "    }\n" +
+                            "    public boolean compareObjects(Object a, Object b) {\n" +
+                            "        if (a != b) return true;\n" +
+                            "        return false;\n" +
+                            "    }\n" +
+                            "}";
+
+        InMemoryCompiler compiler = new InMemoryCompiler();
+        compiler.compile(testClassName, testSource);
+        byte[] testClassBytes = compiler.getCompiledClasses().get(testClassName);
+
+        try (JarOutputStream jos = new JarOutputStream(new FileOutputStream(tempInputJar))) {
+            jos.putNextEntry(new JarEntry(testClassName + ".class"));
+            jos.write(testClassBytes);
+            jos.closeEntry();
+        }
+
+        JarBytecodeEngine engine = new JarBytecodeEngine();
+        engine.process(tempInputJar, tempOutputJar);
+
+        URL[] urls = {tempOutputJar.toURI().toURL()};
+        try (URLClassLoader cl = new URLClassLoader(urls)) {
+            Class<?> clazz = cl.loadClass(testClassName);
+            Object instance = clazz.getDeclaredConstructor().newInstance();
+
+            boolean result1 = (boolean) clazz.getMethod("compareInts", int.class, int.class).invoke(instance, 10, 10);
+            assertTrue(result1);
+
+            boolean result2 = (boolean) clazz.getMethod("compareInts", int.class, int.class).invoke(instance, 10, 20);
+            assertFalse(result2);
+
+            Object obj1 = new Object();
+            Object obj2 = new Object();
+            boolean result3 = (boolean) clazz.getMethod("compareObjects", Object.class, Object.class).invoke(instance, obj1, obj2);
+            assertTrue(result3);
+
+            boolean result4 = (boolean) clazz.getMethod("compareObjects", Object.class, Object.class).invoke(instance, obj1, obj1);
+            assertFalse(result4);
+        }
+    }
+
+    @Test
     public void testFieldReadWriteObfuscation() throws Exception {
         File tempInputJar = File.createTempFile("test-input-field", ".jar");
         tempInputJar.deleteOnExit();

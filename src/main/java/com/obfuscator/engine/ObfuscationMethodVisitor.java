@@ -278,6 +278,62 @@ public class ObfuscationMethodVisitor extends MethodNode {
                         maxLocals = currentLocal;
                     }
                 }
+            } else if (insn.getType() == AbstractInsnNode.JUMP_INSN) {
+                JumpInsnNode jumpInsn = (JumpInsnNode) insn;
+                int opcode = jumpInsn.getOpcode();
+
+                String opString = null;
+                boolean isObjectCompare = false;
+
+                switch (opcode) {
+                    case Opcodes.IF_ICMPEQ: opString = "=="; break;
+                    case Opcodes.IF_ICMPNE: opString = "!="; break;
+                    case Opcodes.IF_ICMPLT: opString = "<"; break;
+                    case Opcodes.IF_ICMPGE: opString = ">="; break;
+                    case Opcodes.IF_ICMPGT: opString = ">"; break;
+                    case Opcodes.IF_ICMPLE: opString = "<="; break;
+                    case Opcodes.IF_ACMPEQ: opString = "=="; isObjectCompare = true; break;
+                    case Opcodes.IF_ACMPNE: opString = "!="; isObjectCompare = true; break;
+                }
+
+                if (opString != null) {
+                    String proxyClassName = proxyManager.getControlFlowProxy("IF");
+                    String internalProxyName = proxyClassName.replace('.', '/');
+
+                    InsnList newInstructions = new InsnList();
+
+                    // Push the operator string
+                    newInstructions.add(new LdcInsnNode(opString));
+
+                    // The stack currently has: [..., value1, value2]
+                    // We need to pass (opString, value1, value2) to the eval method.
+                    // This means we have to move opString under value1 and value2.
+                    // Since opString is a single word, and value1/value2 are single words (int/reference),
+                    // Stack: [value1, value2, opString]
+                    // dup_x2 -> [opString, value1, value2, opString]
+                    // pop -> [opString, value1, value2]
+
+                    newInstructions.add(new InsnNode(Opcodes.DUP_X2));
+                    newInstructions.add(new InsnNode(Opcodes.POP));
+
+                    if (isObjectCompare) {
+                        newInstructions.add(new MethodInsnNode(Opcodes.INVOKESTATIC, internalProxyName, "eval", "(Ljava/lang/String;Ljava/lang/Object;Ljava/lang/Object;)Z", false));
+                    } else {
+                        newInstructions.add(new MethodInsnNode(Opcodes.INVOKESTATIC, internalProxyName, "eval", "(Ljava/lang/String;II)Z", false));
+                    }
+
+                    // The proxy returns a boolean (Z). If true (1), jump.
+                    newInstructions.add(new JumpInsnNode(Opcodes.IFNE, jumpInsn.label));
+
+                    iterator.remove();
+                    AbstractInsnNode nextNode = iterator.hasNext() ? iterator.next() : null;
+                    if (nextNode != null) {
+                        instructions.insertBefore(nextNode, newInstructions);
+                        iterator.previous();
+                    } else {
+                        instructions.add(newInstructions);
+                    }
+                }
             } else if (insn.getType() == AbstractInsnNode.FIELD_INSN) {
                 FieldInsnNode fieldInsn = (FieldInsnNode) insn;
                 String owner = fieldInsn.owner.replace('/', '.');
