@@ -44,6 +44,11 @@
             <artifactId>asm-util</artifactId>
             <version>9.6</version>
         </dependency>
+        <dependency>
+            <groupId>org.ow2.asm</groupId>
+            <artifactId>asm-analysis</artifactId>
+            <version>9.6</version>
+        </dependency>
 
         <!-- Dexlib2 for Android Dex level manipulation (.dex files) -->
         <!-- Added/Verified for parsing and rewriting dex files -->
