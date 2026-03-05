@@ -12,6 +12,9 @@ public class VirtualMachine {
     public static final byte OP_SUB = 0x03;
     public static final byte OP_MUL = 0x04;
     public static final byte OP_RET = 0x05;
+    public static final byte OP_AND = 0x06;
+    public static final byte OP_OR = 0x07;
+    public static final byte OP_XOR = 0x08;
 
     /**
      * Executes the given custom bytecode.
@@ -49,6 +52,21 @@ public class VirtualMachine {
                     int bMul = stack[--sp];
                     int aMul = stack[--sp];
                     stack[sp++] = aMul * bMul;
+                    break;
+                case OP_AND:
+                    int bAnd = stack[--sp];
+                    int aAnd = stack[--sp];
+                    stack[sp++] = aAnd & bAnd;
+                    break;
+                case OP_OR:
+                    int bOr = stack[--sp];
+                    int aOr = stack[--sp];
+                    stack[sp++] = aOr | bOr;
+                    break;
+                case OP_XOR:
+                    int bXor = stack[--sp];
+                    int aXor = stack[--sp];
+                    stack[sp++] = aXor ^ bXor;
                     break;
                 case OP_RET:
                     return stack[--sp];
