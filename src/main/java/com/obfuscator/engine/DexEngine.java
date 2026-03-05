@@ -59,6 +59,76 @@ public class DexEngine implements ObfuscationEngine {
         }
     }
 
+    private void consumeProcessOutput(Process process) throws Exception {
+        try (java.io.BufferedReader reader = new java.io.BufferedReader(new java.io.InputStreamReader(process.getInputStream()))) {
+            String line;
+            while ((line = reader.readLine()) != null) {
+                // Ignore output or log if needed for debugging
+            }
+        }
+    }
+
+    private void alignAndSignApk(File apkFile, File tempDir) {
+        File alignedApk = new File(tempDir, "aligned.apk");
+        File keystore = new File(tempDir, "debug.keystore");
+        try {
+            System.out.println("Zipaligning APK...");
+            ProcessBuilder alignPb = new ProcessBuilder("zipalign", "-p", "-f", "4", apkFile.getAbsolutePath(), alignedApk.getAbsolutePath());
+            alignPb.redirectErrorStream(true);
+            Process alignProcess = alignPb.start();
+            consumeProcessOutput(alignProcess);
+            int alignResult = alignProcess.waitFor();
+            if (alignResult != 0) {
+                System.err.println("zipalign failed. Is it in your PATH? Skipping alignment and signing.");
+                return;
+            }
+
+            // Copy aligned APK back to output
+            Files.copy(alignedApk.toPath(), apkFile.toPath(), java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+
+            System.out.println("Signing APK...");
+            // Generate a temporary keystore
+            ProcessBuilder keytoolPb = new ProcessBuilder(
+                    "keytool", "-genkeypair", "-v",
+                    "-keystore", keystore.getAbsolutePath(),
+                    "-alias", "androiddebugkey",
+                    "-keyalg", "RSA", "-keysize", "2048", "-validity", "10000",
+                    "-storepass", "android", "-keypass", "android",
+                    "-dname", "CN=Android Debug,O=Android,C=US"
+            );
+            keytoolPb.redirectErrorStream(true);
+            Process keytoolProcess = keytoolPb.start();
+            consumeProcessOutput(keytoolProcess);
+            keytoolProcess.waitFor();
+
+            ProcessBuilder signPb = new ProcessBuilder(
+                    "apksigner", "sign",
+                    "--ks", keystore.getAbsolutePath(),
+                    "--ks-pass", "pass:android",
+                    "--key-pass", "pass:android",
+                    apkFile.getAbsolutePath()
+            );
+            signPb.redirectErrorStream(true);
+            Process signProcess = signPb.start();
+            consumeProcessOutput(signProcess);
+            int signResult = signProcess.waitFor();
+            if (signResult != 0) {
+                System.err.println("apksigner failed. Is it in your PATH?");
+            } else {
+                System.out.println("APK aligned and signed successfully.");
+            }
+        } catch (Exception e) {
+            System.err.println("Failed to align and sign APK: " + e.getMessage());
+        } finally {
+            if (alignedApk.exists()) {
+                alignedApk.delete();
+            }
+            if (keystore.exists()) {
+                keystore.delete();
+            }
+        }
+    }
+
     private void processApk(File input, File output, ProxyManager proxyManager) throws Exception {
         File tempDir = Files.createTempDirectory("apk-processing").toFile();
         tempDir.deleteOnExit();
@@ -147,6 +217,11 @@ public class DexEngine implements ObfuscationEngine {
                     }
                 }
             }
+        }
+
+        // 5. Zipalign and Sign the output APK
+        if (output.getName().endsWith(".apk")) {
+            alignAndSignApk(output, tempDir);
         }
     }
 

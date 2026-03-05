@@ -53,8 +53,12 @@
     - [x] 编写 Dex MethodProxyGenerator，专门生成兼容 Dex 语法的反射调用桩代码
   - [ ] 提取并重写 Dex 文件中的对象实例化指令 (拦截 new-instance 和 invoke-direct <init>) 需处理指令组合
     - [ ] 通过代码流分析(Data Flow Analysis)查找 `new-instance` 和对应 `<init>` 调用之间的寄存器关联
+      - [ ] 优化实例化代理逻辑，防止复杂对象实例化时抛出 `InstantiationException`
+      - [ ] 支持对多维数组类型 (`new-array`, `filled-new-array`) 的拦截与代理封装
   - [ ] 提取并重写 Dex 文件中的控制流指令 (拦截 if-eq/if-ne等) 需处理跳转偏移修正
     - [ ] 将所有 `if-*` 转换为 `if-nez` 调用动态生成的代理方法，处理 `goto` 跳转表的自动修正
+      - [ ] 为 Dexlib2 引入 Control Flow Graph (CFG) 以解决复杂循环与多级跳转条件代理时的死循环或栈溢出问题
+      - [ ] 处理 `packed-switch` 和 `sparse-switch` 指令的重写逻辑，将其混淆并替换为自定义路由方法
   - [x] 将动态生成的 Java 代理类使用 d8/dx API 编译为 .dex 格式，并合并到目标 DEX 文件中
   - [x] 支持多 DEX (Multi-Dex) 文件的处理：解析所有 classesN.dex，并统筹注入代理类，确保不超过65535方法数限制
     - [x] 引入 `DexPool` 和 `DexMerger` 进行多 DEX 解析与重整
@@ -62,8 +66,10 @@
   - [x] 支持 APK 文件的解包、签名和重新打包 (集成 apktool / apksigner / zipalign)
     - [x] 使用 ZipInputStream 和 ZipOutputStream 自动解压 APK 并提取 `classes.dex`
     - [ ] 解析和修改 AndroidManifest.xml (如添加/替换 Application 类以执行解密或反调试)
-    - [ ] 集成 `apksigner` Java API (或者命令行调用) 对重打包后的 APK 进行 V1/V2 签名
-    - [ ] 对打包后的 APK 进行 `zipalign` 4字节对齐处理
+    - [x] 集成 `apksigner` Java API (或者命令行调用) 对重打包后的 APK 进行 V1/V2 签名
+    - [x] 对打包后的 APK 进行 `zipalign` 4字节对齐处理
+      - [ ] 添加对 APK 内部资源文件 (例如 `res/`，`assets/`) 的结构化解析与内容遍历，预留资源混淆和隐写接口
+      - [ ] 研究如何重新压缩对齐前的 `.apk` 包体，使其体积最小化，并对无用文件进行自动剔除 (如 `META-INF/` 旧签名)
 
 ## 4. 混淆类随机化与加固
 - [x] 代理类内部逻辑多样化
@@ -150,8 +156,13 @@
 
 ## 8. 文档与生态维护
 - [ ] 完善项目的技术架构图、数据流图与执行时序图
+  - [ ] 新增多层混淆代理调用栈的时序图 (Call Sequence Diagram) 和数据脱敏流转图 (Data Flow Chart)
+  - [ ] 绘制 DEX 重组打包与 D8 合并引擎的工作流概览
 - [ ] 编写详细的开发者接入使用说明与常见构建/运行时报错排查指南(Troubleshooting)
+  - [ ] 针对高版本 Android (`API 28+`) 反射限制导致的 `NoSuchMethodError` 及 Bypass 方式编写指南
+  - [ ] 撰写常见 Dalvik `VerifyError` (如堆栈帧不匹配，寄存器重用冲突) 的案例分析及解决方案
 - [ ] 自动构建及持续集成(CI/CD)脚本编写 (GitHub Actions 或 GitLab CI) 并且配置代码质量与测试覆盖率卡点
+  - [ ] 构建每日夜间安全回归测试 (Nightly Regression Testing)，用最新的 jadx / enjarify 分析混淆效果
 - [ ] 构建在线体验与测试平台: 提供网页端直接上传小文件(Jar/Dex)并返回混淆结果的沙盒系统
 
 - [x] 编写测试用例验证代理类的生成与运行正确性
@@ -165,18 +176,23 @@
   - [x] 验证 DEX 中 sget / sget-object 指令能够被完全移除并替换为代理调用
   - [x] 验证包含 invoke-virtual 和 new-instance 的 DEX 文件能被正确修改
   - [x] 验证通过 DexEngine 生成的文件可以使用 DexFileFactory 正确读取
+  - [ ] 验证 DexEngine 在处理 APK 时能够正确剔除旧签名并进行 zipalign 重排
 - [ ] 针对真实复杂应用 (Spring Boot, Android App) 进行混淆与反编译效果评估
   - [ ] 使用 CFR, Procyon, Fernflower, Jadx 等常见反编译器测试被混淆代码的抗性
   - [ ] 测试被混淆的应用的运行时性能损耗与内存占用增加情况
   - [ ] 提供混淆前后的包大小对比与内存分析报告
+  - [ ] 自动化度量指标计算：统计方法中基本块分裂的碎片率、代理类占总类的比例等
 
 ## 9. 高并发与性能调优
 - [ ] 代理类生成引擎的线程安全与并发优化
   - [ ] 针对 ProxyManager 进行多线程并发瓶颈分析，引入分段锁 (Segmented Locks) 或无锁并发数据结构
   - [ ] 将 ASM 的方法访问 (MethodVisitor) 与类访问 (ClassVisitor) 的处理逻辑进行并行化改造
+  - [ ] 并发任务分发器 (Task Dispatcher)：针对海量类文件的项目，使用 `ForkJoinPool` 进行多文件多核并行混淆
 - [ ] 内存驻留编译器的性能优化 (InMemoryCompiler)
   - [ ] 设计并实现基于缓存的增量编译系统，减少相同/相似代理类的重复编译时间
   - [ ] 为 javax.tools.JavaCompiler 提供异步并发编译队列支持
+  - [ ] 在 Android 环境使用时，规避大量反射/代理类的加载开销：探究 `AppCDS` (Application Class-Data Sharing) 及 AOT 编译配合
 - [ ] Dex 合并阶段的优化
   - [ ] 减少 D8 编译 Dex 时对系统内存的开销，实现流式或分批次编译写入
   - [ ] 对 Multi-Dex 分包算法进行优化，尽量使代理类与被代理调用处于同一个 classesN.dex 以缩短运行时链接时间
+  - [ ] 引入 `DexSplitter` 策略，实现按依赖关系和调用频次智能分割方法，使单个 Dex 加载时间最小化
