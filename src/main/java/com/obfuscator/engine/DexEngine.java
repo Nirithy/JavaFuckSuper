@@ -227,7 +227,8 @@ public class DexEngine implements ObfuscationEngine {
                                         }
                                     }
                                 }
-                            } else if (instruction instanceof org.jf.dexlib2.builder.instruction.BuilderInstruction21c) {
+                            }
+                            if (instruction instanceof org.jf.dexlib2.builder.instruction.BuilderInstruction21c) {
                                 org.jf.dexlib2.builder.instruction.BuilderInstruction21c instr21c = (org.jf.dexlib2.builder.instruction.BuilderInstruction21c) instruction;
                                 if (instr21c.getOpcode() == org.jf.dexlib2.Opcode.SGET || instr21c.getOpcode() == org.jf.dexlib2.Opcode.SGET_OBJECT) {
                                     if (instr21c.getReference() instanceof FieldReference) {
@@ -343,7 +344,18 @@ public class DexEngine implements ObfuscationEngine {
                             org.jf.dexlib2.builder.BuilderInstruction oldInst = toReplace.get(i);
                             List<org.jf.dexlib2.builder.BuilderInstruction> newInsts = replacements.get(i);
 
-                            int index = instructionsList.indexOf(oldInst);
+                            // find index by reference since instances might be equivalent but not equal if BuilderInstruction
+                            int index = -1;
+                            for (int k = 0; k < instructionsList.size(); k++) {
+                                if (instructionsList.get(k) == oldInst) {
+                                    index = k;
+                                    break;
+                                }
+                            }
+                            if (index == -1) {
+                                index = instructionsList.indexOf(oldInst);
+                            }
+
                             if (index != -1) {
                                 // Add new instructions at the index
                                 for (int j = newInsts.size() - 1; j >= 0; j--) {
@@ -351,6 +363,8 @@ public class DexEngine implements ObfuscationEngine {
                                 }
                                 // Remove old instruction (its index shifted by newInsts.size())
                                 mutableImpl.removeInstruction(index + newInsts.size());
+                            } else {
+                                System.out.println("Could not find old instruction in instructionsList: " + oldInst.getOpcode());
                             }
                         }
 
