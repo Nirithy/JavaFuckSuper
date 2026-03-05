@@ -284,8 +284,17 @@ public class ObfuscationMethodVisitor extends MethodNode {
 
                 String opString = null;
                 boolean isObjectCompare = false;
+                boolean isSingleArg = false;
 
                 switch (opcode) {
+                    case Opcodes.IFEQ: opString = "=="; isSingleArg = true; break;
+                    case Opcodes.IFNE: opString = "!="; isSingleArg = true; break;
+                    case Opcodes.IFLT: opString = "<"; isSingleArg = true; break;
+                    case Opcodes.IFGE: opString = ">="; isSingleArg = true; break;
+                    case Opcodes.IFGT: opString = ">"; isSingleArg = true; break;
+                    case Opcodes.IFLE: opString = "<="; isSingleArg = true; break;
+                    case Opcodes.IFNULL: opString = "=="; isSingleArg = true; isObjectCompare = true; break;
+                    case Opcodes.IFNONNULL: opString = "!="; isSingleArg = true; isObjectCompare = true; break;
                     case Opcodes.IF_ICMPEQ: opString = "=="; break;
                     case Opcodes.IF_ICMPNE: opString = "!="; break;
                     case Opcodes.IF_ICMPLT: opString = "<"; break;
@@ -301,6 +310,17 @@ public class ObfuscationMethodVisitor extends MethodNode {
                     String internalProxyName = proxyClassName.replace('.', '/');
 
                     InsnList newInstructions = new InsnList();
+
+                    // To use the existing eval(String, int, int) or eval(String, Object, Object),
+                    // we need two arguments. For single arg jump instructions (IFEQ, IFNULL, etc.),
+                    // we compare the top of the stack against 0 or null.
+                    if (isSingleArg) {
+                        if (isObjectCompare) {
+                            newInstructions.add(new InsnNode(Opcodes.ACONST_NULL));
+                        } else {
+                            newInstructions.add(new InsnNode(Opcodes.ICONST_0));
+                        }
+                    }
 
                     // Push the operator string
                     newInstructions.add(new LdcInsnNode(opString));
