@@ -75,6 +75,14 @@ public class JarBytecodeEngineTest {
                             "        if (a != b) return true;\n" +
                             "        return false;\n" +
                             "    }\n" +
+                            "    public boolean checkZero(int a) {\n" +
+                            "        if (a == 0) return true;\n" +
+                            "        return false;\n" +
+                            "    }\n" +
+                            "    public boolean checkNull(Object a) {\n" +
+                            "        if (a == null) return true;\n" +
+                            "        return false;\n" +
+                            "    }\n" +
                             "}";
 
         InMemoryCompiler compiler = new InMemoryCompiler();

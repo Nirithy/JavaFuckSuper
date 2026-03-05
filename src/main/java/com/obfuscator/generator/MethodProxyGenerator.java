@@ -20,8 +20,17 @@ public class MethodProxyGenerator implements ProxyGenerator {
         boolean useMethodHandles = Math.random() > 0.5;
 
         StringBuilder sb = new StringBuilder();
+
+        String junkCode = "";
+        if (Math.random() > 0.3) {
+            junkCode = "        int junk = " + (int)(Math.random() * 1000) + ";\n" +
+                       "        junk = junk * " + (int)(Math.random() * 50) + ";\n" +
+                       "        if (junk < 0) { junk = 0; }\n";
+        }
+
         sb.append("public class ").append(className).append(" {\n");
         sb.append("    public static Object invoke(Object target, Object[] args) throws Exception {\n");
+        sb.append(junkCode);
         sb.append("        Class<?> clazz = Class.forName(\"").append(methodData.getClassName()).append("\");\n");
 
         String[] paramTypes = methodData.getParamTypes();
