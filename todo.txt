@@ -44,17 +44,26 @@
   - [x] 遍历 dexlib2 解析出的 Classes 和 Methods 结构
   - [x] 在 Method 指令中拦截字符串字面量 (如 const-string) 并输出日志
   - [x] 提取并重写 Dex 文件结构中的字符串数据段并替换为代理调用
-  - [ ] 提取并重写 Dex 文件中的静态字段访问指令 (拦截 sget/sget-object)
+  - [x] 提取并重写 Dex 文件中的静态字段访问指令 (拦截 sget/sget-object)
   - [ ] 提取并重写 Dex 文件中的实例字段访问指令 (拦截 iget/iput/sput)
+    - [x] 实现 IGET 和 IGET_OBJECT 指令拦截与代理调用生成
+    - [ ] 研发能够正确拦截基本类型写入 (IPUT/SPUT) 并进行精确类型推导而不触发 Dalvik VerifyError 的新方案
   - [ ] 提取并重写 Dex 文件中的方法调用指令 (拦截 invoke-virtual, invoke-static 等) 需解决参数装箱与堆栈问题
+    - [ ] 设计 Dex 方法调用栈帧分析器，以准确计算寄存器偏移和装箱机制
+    - [ ] 编写 Dex MethodProxyGenerator，专门生成兼容 Dex 语法的反射调用桩代码
   - [ ] 提取并重写 Dex 文件中的对象实例化指令 (拦截 new-instance 和 invoke-direct <init>) 需处理指令组合
+    - [ ] 通过代码流分析(Data Flow Analysis)查找 `new-instance` 和对应 `<init>` 调用之间的寄存器关联
   - [ ] 提取并重写 Dex 文件中的控制流指令 (拦截 if-eq/if-ne等) 需处理跳转偏移修正
+    - [ ] 将所有 `if-*` 转换为 `if-nez` 调用动态生成的代理方法，处理 `goto` 跳转表的自动修正
   - [x] 将动态生成的 Java 代理类使用 d8/dx API 编译为 .dex 格式，并合并到目标 DEX 文件中
   - [ ] 支持多 DEX (Multi-Dex) 文件的处理：解析所有 classesN.dex，并统筹注入代理类，确保不超过65535方法数限制
+    - [ ] 引入 `DexPool` 和 `DexMerger` 进行多 DEX 解析与重整
+    - [ ] 实现跨 Dex 文件的代理类共享或冗余分发机制
   - [ ] 支持 APK 文件的解包、签名和重新打包 (集成 apktool / apksigner / zipalign)
-    - [ ] 自动解压APK提取DEX文件
-    - [ ] 自动修改 AndroidManifest.xml 处理 Application 类
-    - [ ] 对重打包后的 APK 进行 V1/V2/V3 签名
+    - [ ] 使用 ZipInputStream 和 ZipOutputStream 自动解压 APK 并提取 `classes.dex`
+    - [ ] 解析和修改 AndroidManifest.xml (如添加/替换 Application 类以执行解密或反调试)
+    - [ ] 集成 `apksigner` Java API (或者命令行调用) 对重打包后的 APK 进行 V1/V2 签名
+    - [ ] 对打包后的 APK 进行 `zipalign` 4字节对齐处理
 
 ## 4. 混淆类随机化与加固
 - [x] 代理类内部逻辑多样化
@@ -67,54 +76,76 @@
   - [x] 将花指令扩展到主类的原始方法中 (在 ObfuscationMethodVisitor 中插入 NOP, goto, 等无用跳转与算术指令)
   - [x] 在 DexEngine 中也实现针对 DEX 字节码的指令膨胀和花指令插入
   - [ ] 实现针对方法级别的基本块打乱 (Block splitting and shuffling)
-- [x] 深度字符串加密
+    - [ ] 构建 Control Flow Graph (CFG) 以识别和分割 Basic Blocks
+    - [ ] 将块使用 `GOTO` 打乱顺序重新写入指令流
+- [ ] 深度字符串加密
   - [ ] 支持通过动态密钥解密原始字符串，密钥可以分散在多个代理类中
+    - [ ] 设计基于时间的密钥轮换或基于堆栈状态的动态解密种子生成器
   - [x] 引入 AES / DES / RC4 等加密算法对常量池字符串进行静态加密，动态解密
   - [x] 实现自定义混淆字典，进一步加固生成的标识符名称（例如 OOO000 风格或完全不可见字符风格）
   - [ ] 动态加载密钥：从外部服务器、JNI库或环境隐写获取解密密钥
+    - [ ] 设计环境变量隐写和资源文件隐写机制 (Steganography) 存储密钥片段
 
 ## 5. 高级混淆特性与保护
-- [ ] Opaque Predicates (不透明谓词) 插入
-  - [ ] 生成总是为真或为假的复杂条件表达式，增加反编译器的分析难度
-  - [ ] 实现基于数学定理的谓词，使得静态分析难以求解
+- [x] Opaque Predicates (不透明谓词) 插入
+  - [x] 生成总是为真或为假的复杂条件表达式，增加反编译器的分析难度
+  - [x] 实现基于数学定理的谓词，使得静态分析难以求解
   - [ ] 实现基于状态机的动态谓词生成
+    - [ ] 注入全局 State 变量，结合方法调用图实时更新，在关键判定点引入依赖 State 的复杂跳转
 - [ ] 控制流平坦化 (Control Flow Flattening)
   - [ ] 将方法内原有的基本块转化为一个由大的 switch-case 语句管理的调度器循环
   - [ ] 增加多级跳板，使得 switch 逻辑更加复杂
   - [ ] 动态计算 switch 状态转移值，防范静态常量推导
+    - [ ] 引入非线性方程或散列函数作为 `switch` `case` 跳转值的计算依据
 - [ ] 异常控制流
   - [ ] 使用 try-catch-finally 块代替正常的逻辑跳转，使用 throw 代替 goto 或 return
+    - [ ] 在 `ObfuscationMethodVisitor` 中安全分析栈帧(Stack Map Frames)，在方法末尾的 Return 区块使用 ATHROW 抛出带有返回值的自定义异常对象
   - [ ] 植入虚假异常处理逻辑，扰乱控制流分析
+    - [ ] 伪造冗余的 `ExceptionTable` 并指向无效但合法的代码块
 - [ ] 反调试与反运行环境检测
   - [ ] 注入检测代码，识别是否在模拟器、Xposed 环境、或者被附加了调试器 (JDWP)
+    - [ ] 检测 `android.os.Debug.isDebuggerConnected()` 和特定的 `ClassLoader` (如 `de.robv.android.xposed.XposedBridge`)
   - [ ] 检测 Root 环境以及 Frida/Xposed 框架 Hook
+    - [ ] 扫描特定的端口 (如 Frida Server 的 27042 端口) 并检测 `su` 二进制文件
   - [ ] 加入自毁机制或应用层重启逻辑响应安全威胁
+    - [ ] 当检测到调试或篡改时，使用 `Runtime.getRuntime().halt(0)` 强杀进程或制造内存溢出
 - [ ] 反编译工具抵抗 (Anti-Decompiler)
   - [ ] 构造引发 CFR / Procyon / Jadx 等主流反编译工具崩溃的特殊指令序列 (如非法的局部变量表/异常表)
   - [ ] 利用 Java 语言规范与 Class 文件规范差异，进行类库漏洞攻击混淆
+    - [ ] 插入重叠的 Try-Catch 块 (Overlapping Try-Catch) 让 Jadx 无法生成结构化的 Java AST
 
 ## 6. 测试验证模块
 - [ ] 针对各类代理类的边界测试
   - [ ] 测试代理类名生成器在高并发下是否有冲突
   - [ ] 确保混淆对基本数据类型的处理安全无误
+    - [ ] 添加包含 `byte`, `short`, `double`, `long` 等全类型混合运算的单元测试用例
   - [ ] 加入对带有多重泛型的类方法调用的代理测试
+    - [ ] 验证泛型擦除后反射调用的方法签名匹配准确性
+- [ ] 混淆鲁棒性测试
+  - [ ] 集成到真实的大型 Spring Boot 和 Android 项目中进行端到端构建和混淆
+  - [ ] 分析混淆后应用的内存和 CPU 占用率变化，优化代理类的类加载性能
 
 ## 7. 高级特性预研与长期规划 (未来迭代)
 - [ ] 动态控制流混淆技术进阶
   - [ ] 虚假异常注入预研: 设计在正常执行路径中抛出并捕获自定义异常机制，迫使反编译器分析庞大而无用的异常表
   - [ ] 控制流平坦化(Control Flow Flattening)深入研究: 实现类似 OLLVM 的 `switch-case` 状态机分发器
   - [ ] 基于分支跳转隐写术 (Branch obfuscation via steganography)
+    - [ ] 将控制流逻辑隐藏在特定的图片像素或预定义文件的 Byte 序列中
 - [ ] 动态指令生成技术与运行时环境保护
   - [ ] 预研指令自修改(Self-modifying code)的可行性，在 Dalvik/ART 内存加载后动态解密真正代码字节
+    - [ ] 使用 `Unsafe` 机制或 JNI 拦截 `DefineClass` 来运行时修改已被加载类的字节码
   - [ ] 环境感知的变异: 检测运行时设备类型，针对真实机器与模拟器执行不同的代理分支逻辑以增加对抗成本
   - [ ] 蜜罐和陷阱设计(Honeypots): 构建诱导动态分析工具进行 Hook 的伪装方法，并设置自毁或报错陷阱
+    - [ ] 生成包含诱饵名称的方法 (如 `verifyLicense`, `getSecretKey`) 诱导攻击者进行 Hook 并触发警报
 - [ ] 针对安卓生态特性与构建系统的保护增强
   - [ ] Android 资源文件(AAR, XML, Assets)全链路混淆、压缩及加密
+    - [ ] 修改 `resources.arsc` 将资源名混淆为不可见字符
   - [ ] JNI 层面的原生代码联动 (JNI Obfuscation): 将核心解密和控制流逻辑抽离至 C/C++ SO 层并进行 VMP (Virtual Machine Protect) 处理
   - [ ] 构建 Gradle 插件: 开发自动挂载到 `Transform` 或 `Task` 层的集成插件，对开发者提供无感知的无缝混淆体验
 - [ ] 脱壳与 Hook 对抗机制落地
   - [ ] 多维度检测内存中的非正常执行环境 (例如检测 `ro.debuggable`, `/data/local/tmp` 等敏感路径)
   - [ ] 基于 Xposed, Frida, Magisk 等常见注入框架与内核态 Hook 行为的检测、绕过与拦截阻断
+    - [ ] 使用 In-line Hook 技术对抗安全软件和分析框架的 Got 表劫持
   - [ ] 动态反调试(Anti-Debugging)增强，结合 ptrace 检测与双进程互相看守(Daemon Process)机制实现对 JDWP 的全面防护
 
 ## 8. 文档与生态维护

@@ -36,9 +36,10 @@ public class ObfuscationMethodVisitor extends MethodNode {
             // Enable safe flower instructions (NOP and ICONST_0 + POP).
             // We avoid inserting before NEW to avoid breaking the NEW->DUP pattern detection.
             if (insn.getOpcode() != Opcodes.NEW && insn.getOpcode() != Opcodes.DUP && insn.getOpcode() != Opcodes.INVOKESPECIAL && Math.random() < 0.1) {
-                if (Math.random() > 0.5) {
+                double rand = Math.random();
+                if (rand < 0.3) {
                     instructions.insertBefore(insn, new InsnNode(Opcodes.NOP));
-                } else {
+                } else if (rand < 0.6) {
                     InsnList junkInstructions = new InsnList();
                     // Basic valid junk: push a number, then pop it. Or math operations that don't affect anything.
                     junkInstructions.add(new InsnNode(Opcodes.ICONST_1));
@@ -46,6 +47,9 @@ public class ObfuscationMethodVisitor extends MethodNode {
                     junkInstructions.add(new InsnNode(Opcodes.IADD));
                     junkInstructions.add(new InsnNode(Opcodes.POP));
                     instructions.insertBefore(insn, junkInstructions);
+                } else {
+                    // Opaque Predicate Injection
+                    insertOpaquePredicate(insn);
                 }
             }
 
@@ -458,6 +462,34 @@ public class ObfuscationMethodVisitor extends MethodNode {
         if (nextVisitor != null) {
             accept(nextVisitor);
         }
+    }
+
+    /**
+     * Injects an opaque predicate before the given instruction.
+     * Generates a complex condition that always evaluates to true, wrapping the actual instruction or just jumping.
+     * We will generate: `if ((7 * 7) % 2 != 0) goto next; throw exception; next:`
+     */
+    private void insertOpaquePredicate(AbstractInsnNode insn) {
+        InsnList opaqueList = new InsnList();
+        LabelNode trueLabel = new LabelNode();
+
+        // 7 * 7 % 2 != 0 (which is 49 % 2 == 1 -> != 0, so it's always true)
+        opaqueList.add(new IntInsnNode(Opcodes.BIPUSH, 7));
+        opaqueList.add(new IntInsnNode(Opcodes.BIPUSH, 7));
+        opaqueList.add(new InsnNode(Opcodes.IMUL)); // 49
+        opaqueList.add(new InsnNode(Opcodes.ICONST_2)); // 2
+        opaqueList.add(new InsnNode(Opcodes.IREM)); // 49 % 2 = 1
+
+        // IFNE trueLabel (if 1 != 0, goto trueLabel)
+        opaqueList.add(new JumpInsnNode(Opcodes.IFNE, trueLabel));
+
+        // Fake code if predicate is false (which it never is)
+        opaqueList.add(new InsnNode(Opcodes.ACONST_NULL));
+        opaqueList.add(new InsnNode(Opcodes.ATHROW));
+
+        opaqueList.add(trueLabel);
+
+        instructions.insertBefore(insn, opaqueList);
     }
 
     private void pushInt(InsnList list, int value) {
