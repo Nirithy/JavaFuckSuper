@@ -43,14 +43,18 @@
   - [x] 在 DexEngine 中使用 dexlib2 加载并重新写入原始 .dex 文件
   - [x] 遍历 dexlib2 解析出的 Classes 和 Methods 结构
   - [x] 在 Method 指令中拦截字符串字面量 (如 const-string) 并输出日志
-  - [ ] 提取并重写 Dex 文件结构中的字符串数据段并替换为代理调用
-  - [ ] 提取并重写 Dex 文件中的方法调用指令 (拦截 invoke-virtual, invoke-static 等)
-  - [ ] 提取并重写 Dex 文件中的字段访问指令 (拦截 iget/iput/sget/sput)
-  - [ ] 提取并重写 Dex 文件中的对象实例化指令 (拦截 new-instance)
-  - [ ] 提取并重写 Dex 文件中的控制流指令 (拦截 if-eq/if-ne等)
-  - [ ] 将动态生成的 Java 代理类使用 d8/dx API 编译为 .dex 格式，并合并到目标 DEX 文件中
-  - [ ] 支持多 DEX (Multi-Dex) 文件的处理
+  - [x] 提取并重写 Dex 文件结构中的字符串数据段并替换为代理调用
+  - [ ] 提取并重写 Dex 文件中的静态字段访问指令 (拦截 sget/sget-object)
+  - [ ] 提取并重写 Dex 文件中的实例字段访问指令 (拦截 iget/iput/sput)
+  - [ ] 提取并重写 Dex 文件中的方法调用指令 (拦截 invoke-virtual, invoke-static 等) 需解决参数装箱与堆栈问题
+  - [ ] 提取并重写 Dex 文件中的对象实例化指令 (拦截 new-instance 和 invoke-direct <init>) 需处理指令组合
+  - [ ] 提取并重写 Dex 文件中的控制流指令 (拦截 if-eq/if-ne等) 需处理跳转偏移修正
+  - [x] 将动态生成的 Java 代理类使用 d8/dx API 编译为 .dex 格式，并合并到目标 DEX 文件中
+  - [ ] 支持多 DEX (Multi-Dex) 文件的处理：解析所有 classesN.dex，并统筹注入代理类，确保不超过65535方法数限制
   - [ ] 支持 APK 文件的解包、签名和重新打包 (集成 apktool / apksigner / zipalign)
+    - [ ] 自动解压APK提取DEX文件
+    - [ ] 自动修改 AndroidManifest.xml 处理 Application 类
+    - [ ] 对重打包后的 APK 进行 V1/V2/V3 签名
 
 ## 4. 混淆类随机化与加固
 - [x] 代理类内部逻辑多样化
@@ -61,12 +65,13 @@
 - [ ] 无效死代码与花指令生成
   - [x] 在生成的控制流代理类 (ControlFlowProxy) 内插入对运行结果无影响的复杂算术运算和条件分支
   - [x] 将花指令扩展到主类的原始方法中 (在 ObfuscationMethodVisitor 中插入 NOP, goto, 等无用跳转与算术指令)
+  - [ ] 在 DexEngine 中也实现针对 DEX 字节码的指令膨胀和花指令插入
   - [ ] 实现针对方法级别的基本块打乱 (Block splitting and shuffling)
 - [ ] 深度字符串加密
   - [ ] 支持通过动态密钥解密原始字符串，密钥可以分散在多个代理类中
-  - [ ] 引入 AES / DES 等加密算法对常量池字符串进行静态加密，动态解密
-  - [ ] 实现自定义混淆字典，进一步加固生成的标识符名称
-  - [ ] 动态加载密钥：从外部服务器或环境隐写获取解密密钥
+  - [ ] 引入 AES / DES / RC4 等加密算法对常量池字符串进行静态加密，动态解密
+  - [ ] 实现自定义混淆字典，进一步加固生成的标识符名称（例如 OOO000 风格或完全不可见字符风格）
+  - [ ] 动态加载密钥：从外部服务器、JNI库或环境隐写获取解密密钥
 
 ## 5. 高级混淆特性与保护
 - [ ] Opaque Predicates (不透明谓词) 插入
@@ -85,7 +90,7 @@
   - [ ] 检测 Root 环境以及 Frida/Xposed 框架 Hook
   - [ ] 加入自毁机制或应用层重启逻辑响应安全威胁
 - [ ] 反编译工具抵抗 (Anti-Decompiler)
-  - [ ] 构造引发 CFR / Procyon 等主流反编译工具崩溃的特殊指令序列 (如非法的局部变量表/异常表)
+  - [ ] 构造引发 CFR / Procyon / Jadx 等主流反编译工具崩溃的特殊指令序列 (如非法的局部变量表/异常表)
   - [ ] 利用 Java 语言规范与 Class 文件规范差异，进行类库漏洞攻击混淆
 
 ## 6. 测试验证模块
@@ -95,7 +100,12 @@
   - [x] 为 MethodProxyGenerator / FieldProxyGenerator 编写单元测试
   - [x] 为 JarBytecodeEngine / ObfuscationClassVisitor 编写基础测试 (LDC测试)
   - [x] 为 JarBytecodeEngine 编写更全面的测试 (包括 Method, Class Creation, Field 拦截)
-  - [ ] 为 JarBytecodeEngine 编写测试以验证控制流混淆的正确性
+- [ ] 完善 DexEngine 测试用例
+  - [x] 验证 DEX 中 const-string 提取和代理类生成正确性
+  - [ ] 验证 DEX 中 sget / sget-object 指令能够被完全移除并替换为代理调用
+  - [ ] 验证包含 invoke-virtual 和 new-instance 的 DEX 文件能被正确修改
+  - [ ] 验证通过 DexEngine 生成的文件可以使用 DexFileFactory 正确读取
 - [ ] 针对真实复杂应用 (Spring Boot, Android App) 进行混淆与反编译效果评估
   - [ ] 使用 CFR, Procyon, Fernflower, Jadx 等常见反编译器测试被混淆代码的抗性
   - [ ] 测试被混淆的应用的运行时性能损耗与内存占用增加情况
+  - [ ] 提供混淆前后的包大小对比与内存分析报告

@@ -6,9 +6,13 @@ import org.jf.dexlib2.Opcodes;
 import org.jf.dexlib2.iface.DexFile;
 import org.jf.dexlib2.iface.instruction.Instruction;
 import org.jf.dexlib2.iface.instruction.formats.Instruction21c;
+import org.jf.dexlib2.iface.reference.FieldReference;
+import org.jf.dexlib2.iface.reference.MethodReference;
 import org.jf.dexlib2.iface.reference.StringReference;
 import org.jf.dexlib2.immutable.instruction.ImmutableInstruction21c;
 import org.jf.dexlib2.immutable.reference.ImmutableMethodReference;
+import com.obfuscator.generator.FieldData;
+import com.obfuscator.generator.MethodData;
 import org.jf.dexlib2.rewriter.DexRewriter;
 import org.jf.dexlib2.rewriter.InstructionRewriter;
 import org.jf.dexlib2.rewriter.Rewriter;
@@ -89,6 +93,72 @@ public class DexEngine implements ObfuscationEngine {
                                         replacements.add(newInsts);
 
                                         changed = true;
+                                    }
+                                }
+                            } else if (instruction instanceof org.jf.dexlib2.builder.instruction.BuilderInstruction21c) {
+                                org.jf.dexlib2.builder.instruction.BuilderInstruction21c instr21c = (org.jf.dexlib2.builder.instruction.BuilderInstruction21c) instruction;
+                                if (instr21c.getOpcode() == org.jf.dexlib2.Opcode.SGET || instr21c.getOpcode() == org.jf.dexlib2.Opcode.SGET_OBJECT) {
+                                    if (instr21c.getReference() instanceof FieldReference) {
+                                        FieldReference fieldRef = (FieldReference) instr21c.getReference();
+                                        String owner = fieldRef.getDefiningClass();
+                                        String className = owner.substring(1, owner.length() - 1).replace('/', '.');
+                                        String name = fieldRef.getName();
+                                        String desc = fieldRef.getType();
+
+                                        FieldData fieldData = new FieldData(className, name);
+                                        String proxyClassName = proxyManager.getFieldProxy(fieldData);
+                                        String internalProxyName = "L" + proxyClassName.replace('.', '/') + ";";
+
+                                        // We intercept static field gets:
+                                        // 1. const/4 vTemp, 0 (null target for static)
+                                        // 2. invoke-static {vTemp}, proxyClassName->get(Ljava/lang/Object;)Ljava/lang/Object;
+                                        // 3. move-result-object vTemp
+                                        // 4. check-cast vTemp, desc (if object)
+                                        // 5. move-object vDest, vTemp (if object) or unbox if primitive
+                                        // For MVP let's assume objects and handle strings mainly, or just push null target to get()
+
+                                        // Simplified MVP for SGET_OBJECT:
+                                        if (instr21c.getOpcode() == org.jf.dexlib2.Opcode.SGET_OBJECT) {
+                                            int destReg = instr21c.getRegisterA();
+
+                                            // const/4 vDest, 0
+                                            org.jf.dexlib2.builder.instruction.BuilderInstruction11n constNull =
+                                                    new org.jf.dexlib2.builder.instruction.BuilderInstruction11n(
+                                                        org.jf.dexlib2.Opcode.CONST_4, destReg, 0
+                                                    );
+
+                                            // invoke-static {vDest}, proxy->get
+                                            org.jf.dexlib2.builder.instruction.BuilderInstruction35c invokeInstr =
+                                                    new org.jf.dexlib2.builder.instruction.BuilderInstruction35c(
+                                                            org.jf.dexlib2.Opcode.INVOKE_STATIC,
+                                                            1, // register count
+                                                            destReg, 0, 0, 0, 0,
+                                                            new ImmutableMethodReference(internalProxyName, "get", java.util.Collections.singletonList("Ljava/lang/Object;"), "Ljava/lang/Object;")
+                                                    );
+
+                                            // move-result-object vDest
+                                            org.jf.dexlib2.builder.instruction.BuilderInstruction11x moveResult =
+                                                    new org.jf.dexlib2.builder.instruction.BuilderInstruction11x(
+                                                        org.jf.dexlib2.Opcode.MOVE_RESULT_OBJECT, destReg
+                                                    );
+
+                                            // check-cast vDest, desc
+                                            org.jf.dexlib2.builder.instruction.BuilderInstruction21c checkCast =
+                                                    new org.jf.dexlib2.builder.instruction.BuilderInstruction21c(
+                                                        org.jf.dexlib2.Opcode.CHECK_CAST, destReg,
+                                                        new org.jf.dexlib2.immutable.reference.ImmutableTypeReference(desc)
+                                                    );
+
+                                            List<org.jf.dexlib2.builder.BuilderInstruction> newInsts = new ArrayList<>();
+                                            newInsts.add(constNull);
+                                            newInsts.add(invokeInstr);
+                                            newInsts.add(moveResult);
+                                            newInsts.add(checkCast);
+
+                                            toReplace.add(instruction);
+                                            replacements.add(newInsts);
+                                            changed = true;
+                                        }
                                     }
                                 }
                             }
