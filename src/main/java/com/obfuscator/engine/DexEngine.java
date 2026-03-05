@@ -228,6 +228,19 @@ public class DexEngine implements ObfuscationEngine {
                                     }
                                 }
                             }
+                            // Randomly inject NOP instructions to bloat the bytecode
+                            if (Math.random() < 0.1) {
+                                toReplace.add(instruction);
+                                List<org.jf.dexlib2.builder.BuilderInstruction> newInsts = new ArrayList<>();
+                                // Add a NOP instruction
+                                newInsts.add(new org.jf.dexlib2.builder.instruction.BuilderInstruction10x(org.jf.dexlib2.Opcode.NOP));
+                                // Keep the original instruction
+                                newInsts.add(instruction);
+                                replacements.add(newInsts);
+                                changed = true;
+                                continue;
+                            }
+
                             if (instruction instanceof org.jf.dexlib2.builder.instruction.BuilderInstruction21c) {
                                 org.jf.dexlib2.builder.instruction.BuilderInstruction21c instr21c = (org.jf.dexlib2.builder.instruction.BuilderInstruction21c) instruction;
                                 if (instr21c.getOpcode() == org.jf.dexlib2.Opcode.SGET || instr21c.getOpcode() == org.jf.dexlib2.Opcode.SGET_OBJECT) {
