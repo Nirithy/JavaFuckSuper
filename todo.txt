@@ -77,13 +77,15 @@
   - [x] 为其他代理类引入逻辑随机化 (ClassCreation, Method, Field, ControlFlow)
 - [x] 反射与 MethodHandle 混合使用
   - [x] 在代理类中随机使用传统 Reflection 或 JDK 7+ MethodHandle 调用目标方法 (MethodProxy, FieldProxy, ClassCreationProxy)
-- [ ] 无效死代码与花指令生成
+- [x] 无效死代码与花指令生成
   - [x] 在生成的控制流代理类 (ControlFlowProxy) 内插入对运行结果无影响的复杂算术运算和条件分支
   - [x] 将花指令扩展到主类的原始方法中 (在 ObfuscationMethodVisitor 中插入 NOP, goto, 等无用跳转与算术指令)
   - [x] 在 DexEngine 中也实现针对 DEX 字节码的指令膨胀和花指令插入
   - [ ] 实现针对方法级别的基本块打乱 (Block splitting and shuffling)
     - [ ] 构建 Control Flow Graph (CFG) 以识别和分割 Basic Blocks
     - [ ] 将块使用 `GOTO` 打乱顺序重新写入指令流
+  - [x] 指令替换 (Instruction Substitution) - 如将 IADD 替换为 a - (~b) - 1
+  - [x] 数字混淆 (Number Obfuscation) - 将所有出现的常量数字替换为动态运算的异或还原
 - [ ] 深度字符串加密
   - [ ] 支持通过动态密钥解密原始字符串，密钥可以分散在多个代理类中
     - [ ] 设计基于时间的密钥轮换或基于堆栈状态的动态解密种子生成器
@@ -98,9 +100,9 @@
   - [x] 实现基于数学定理的谓词，使得静态分析难以求解
   - [ ] 实现基于状态机的动态谓词生成
     - [ ] 注入全局 State 变量，结合方法调用图实时更新，在关键判定点引入依赖 State 的复杂跳转
-- [ ] 控制流平坦化 (Control Flow Flattening)
-  - [ ] 将方法内原有的基本块转化为一个由大的 switch-case 语句管理的调度器循环
-  - [ ] 增加多级跳板，使得 switch 逻辑更加复杂
+- [x] 控制流平坦化 (Control Flow Flattening)
+  - [x] 将方法内原有的基本块转化为一个由大的 switch-case 语句管理的调度器循环
+  - [x] 增加多级跳板，使得 switch 逻辑更加复杂
   - [ ] 动态计算 switch 状态转移值，防范静态常量推导
     - [ ] 引入非线性方程或散列函数作为 `switch` `case` 跳转值的计算依据
 - [x] 异常控制流
