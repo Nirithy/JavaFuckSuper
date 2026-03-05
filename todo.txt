@@ -51,11 +51,11 @@
   - [x] 提取并重写 Dex 文件中的方法调用指令 (拦截 invoke-virtual, invoke-static 等) 需解决参数装箱与堆栈问题
     - [x] 设计 Dex 方法调用栈帧分析器，以准确计算寄存器偏移和装箱机制
     - [x] 编写 Dex MethodProxyGenerator，专门生成兼容 Dex 语法的反射调用桩代码
-  - [ ] 提取并重写 Dex 文件中的对象实例化指令 (拦截 new-instance 和 invoke-direct <init>) 需处理指令组合
+  - [ ] 提取并重写 Dex 文件中的对象实例化指令 (拦截 new-instance 和 invoke-direct <init>) 需处理指令组合 (注: 由于 Dalvik/ART VerifyError 限制，暂缓在 DEX 层面直接拦截 NEW_INSTANCE)
     - [ ] 通过代码流分析(Data Flow Analysis)查找 `new-instance` 和对应 `<init>` 调用之间的寄存器关联
       - [ ] 优化实例化代理逻辑，防止复杂对象实例化时抛出 `InstantiationException`
       - [ ] 支持对多维数组类型 (`new-array`, `filled-new-array`) 的拦截与代理封装
-  - [ ] 提取并重写 Dex 文件中的控制流指令 (拦截 if-eq/if-ne等) 需处理跳转偏移修正
+  - [ ] 提取并重写 Dex 文件中的控制流指令 (拦截 if-eq/if-ne等) 需处理跳转偏移修正 (注: 由于 Dalvik VerifyError，暂跳过 Dex 中的 IF_* 指令拦截)
     - [ ] 将所有 `if-*` 转换为 `if-nez` 调用动态生成的代理方法，处理 `goto` 跳转表的自动修正
       - [ ] 为 Dexlib2 引入 Control Flow Graph (CFG) 以解决复杂循环与多级跳转条件代理时的死循环或栈溢出问题
       - [ ] 处理 `packed-switch` 和 `sparse-switch` 指令的重写逻辑，将其混淆并替换为自定义路由方法
@@ -81,12 +81,12 @@
   - [x] 在生成的控制流代理类 (ControlFlowProxy) 内插入对运行结果无影响的复杂算术运算和条件分支
   - [x] 将花指令扩展到主类的原始方法中 (在 ObfuscationMethodVisitor 中插入 NOP, goto, 等无用跳转与算术指令)
   - [x] 在 DexEngine 中也实现针对 DEX 字节码的指令膨胀和花指令插入
-  - [ ] 实现针对方法级别的基本块打乱 (Block splitting and shuffling)
-    - [ ] 构建 Control Flow Graph (CFG) 以识别和分割 Basic Blocks
-    - [ ] 将块使用 `GOTO` 打乱顺序重新写入指令流
-- [ ] 深度字符串加密
-  - [ ] 支持通过动态密钥解密原始字符串，密钥可以分散在多个代理类中
-    - [ ] 设计基于时间的密钥轮换或基于堆栈状态的动态解密种子生成器
+  - [x] 实现针对方法级别的基本块打乱 (Block splitting and shuffling)
+    - [x] 构建 Control Flow Graph (CFG) 以识别和分割 Basic Blocks (基础版实现于 ObfuscationMethodVisitor.shuffleBlocks)
+    - [x] 将块使用 `GOTO` 打乱顺序重新写入指令流
+- [x] 深度字符串加密
+  - [x] 支持通过动态密钥解密原始字符串，密钥可以分散在多个代理类中
+    - [x] 设计基于时间的密钥轮换或基于堆栈状态的动态解密种子生成器 (通过调用栈哈希值动态还原 AES Key)
   - [x] 引入 AES / DES / RC4 等加密算法对常量池字符串进行静态加密，动态解密
   - [x] 实现自定义混淆字典，进一步加固生成的标识符名称（例如 OOO000 风格或完全不可见字符风格）
   - [ ] 动态加载密钥：从外部服务器、JNI库或环境隐写获取解密密钥
@@ -221,6 +221,7 @@
     - [ ] 研究如何限制 LLM 生成的语义等价代码的执行性能损耗在可控阈值内
     - [ ] 构建轻量级 AST 合法性自检工具，快速拦截模型输出的语法或类型错误
   - [ ] 自动生成迷惑性极强的变量名、方法名和日志输出，模拟真实业务代码库结构，混淆逆向人员视听。
+    - [ ] 利用 RAG 技术结合 Android/Java API 文档生成更真实的虚假方法名，避免被静态分析特征匹配发现
     - [ ] 结合本地项目的上下文信息微调生成模型，保证虚假方法签名和字符串字面量契合当前工程的业务背景
 - [ ] 对抗机器学习静态特征分析
   - [ ] 分析主流反病毒软件 (AV) 和静态检测引擎使用的机器学习特征提取方法 (如 Opcode N-gram, API Call Graph)。
