@@ -328,6 +328,21 @@ public class ObfuscationMethodVisitor extends MethodNode {
                 } else {
                     instructions.add(subList);
                 }
+            } else if (insn.getOpcode() == Opcodes.ISHL || insn.getOpcode() == Opcodes.ISHR || insn.getOpcode() == Opcodes.IUSHR) {
+                // Instruction Substitution: a << b -> a << (b & 31)
+                InsnList subList = new InsnList();
+                pushInt(subList, 31);
+                subList.add(new InsnNode(Opcodes.IAND));
+                subList.add(new InsnNode(insn.getOpcode()));
+
+                iterator.remove();
+                AbstractInsnNode nextNode = iterator.hasNext() ? iterator.next() : null;
+                if (nextNode != null) {
+                    instructions.insertBefore(nextNode, subList);
+                    iterator.previous();
+                } else {
+                    instructions.add(subList);
+                }
             } else if (insn.getOpcode() == Opcodes.IOR) {
                 // Instruction Substitution: a | b -> ~(~a & ~b)
                 InsnList subList = new InsnList();
@@ -805,6 +820,17 @@ public class ObfuscationMethodVisitor extends MethodNode {
             opaqueList.add(new InsnNode(Opcodes.POP));
         }
 
+        // Add dummy API call
+        opaqueList.add(new MethodInsnNode(Opcodes.INVOKESTATIC, "java/lang/System", "currentTimeMillis", "()J", false));
+        opaqueList.add(new InsnNode(Opcodes.POP2));
+
+        // State-dependent loop (dead code)
+        LabelNode loopStart = new LabelNode();
+        opaqueList.add(loopStart);
+        pushInt(opaqueList, randVal);
+        pushInt(opaqueList, 100);
+        opaqueList.add(new JumpInsnNode(Opcodes.IF_ICMPLT, loopStart)); // infinite loop if randVal < 100
+
         opaqueList.add(new TypeInsnNode(Opcodes.NEW, "java/lang/VerifyError"));
         opaqueList.add(new InsnNode(Opcodes.DUP));
         opaqueList.add(new MethodInsnNode(Opcodes.INVOKESPECIAL, "java/lang/VerifyError", "<init>", "()V", false));
@@ -817,7 +843,7 @@ public class ObfuscationMethodVisitor extends MethodNode {
 
     private InsnList obfuscateNumber(int val) {
         InsnList numList = new InsnList();
-        int strategy = java.util.concurrent.ThreadLocalRandom.current().nextInt(5);
+        int strategy = java.util.concurrent.ThreadLocalRandom.current().nextInt(6);
 
         if (strategy == 0) {
             // Strategy 0: val ^ key
@@ -860,13 +886,8 @@ public class ObfuscationMethodVisitor extends MethodNode {
             numList.add(new InsnNode(Opcodes.IADD)); // yields val + key1
             pushInt(numList, key1);
             numList.add(new InsnNode(Opcodes.ISUB)); // yields val
-        } else {
+        } else if (strategy == 4) {
             // Strategy 4: Bitwise shifts
-            // val = ((val << 3) ^ key)
-            // wait, we must be able to restore it.
-            // val = ((val ^ key1) << 1) ^ key2 ? No, shift drops bits.
-            // How about: (val * 2) / 2
-            // But division is slow and truncation might happen if val * 2 overflows.
             // Safe strategy: val = (val ^ key1) + key2
             int key1 = java.util.concurrent.ThreadLocalRandom.current().nextInt();
             int key2 = java.util.concurrent.ThreadLocalRandom.current().nextInt();
@@ -877,6 +898,24 @@ public class ObfuscationMethodVisitor extends MethodNode {
             numList.add(new InsnNode(Opcodes.ISUB)); // yields val ^ key1
             pushInt(numList, key1);
             numList.add(new InsnNode(Opcodes.IXOR)); // yields val
+        } else {
+            // Strategy 5: array length and math
+            // val = ((val * key) / key)
+            // Need a non-zero key. Prevent overflow by using a small key if val is large,
+            // but just to be safe from overflow truncating bits, let's use a simpler safe div.
+            // Let's use array length to push a number:
+            // val = (val + key1) - key1 (where key1 is pushed via array length)
+            int key1 = java.util.concurrent.ThreadLocalRandom.current().nextInt(5, 50);
+            int obfuscated = val + key1;
+
+            pushInt(numList, obfuscated);
+
+            // Push key1 via array length
+            pushInt(numList, key1);
+            numList.add(new IntInsnNode(Opcodes.NEWARRAY, Opcodes.T_BYTE));
+            numList.add(new InsnNode(Opcodes.ARRAYLENGTH));
+
+            numList.add(new InsnNode(Opcodes.ISUB));
         }
 
         return numList;
@@ -927,10 +966,17 @@ public class ObfuscationMethodVisitor extends MethodNode {
         // Ensure method has no try-catch blocks
         if (!tryCatchBlocks.isEmpty()) return false;
 
-        // For simplicity in this obfuscator iteration, we only virtualize static methods with NO arguments.
-        Type[] args = Type.getArgumentTypes(desc);
-        if (args.length > 0 || (access & Opcodes.ACC_STATIC) == 0) {
+        // Virtualize static methods with integer-like primitive arguments.
+        if ((access & Opcodes.ACC_STATIC) == 0) {
             return false;
+        }
+
+        Type[] args = Type.getArgumentTypes(desc);
+        for (Type t : args) {
+            int sort = t.getSort();
+            if (sort != Type.INT && sort != Type.BOOLEAN && sort != Type.BYTE && sort != Type.CHAR && sort != Type.SHORT) {
+                return false;
+            }
         }
 
         // Two-pass compilation to support labels and jumps
@@ -1080,18 +1126,35 @@ public class ObfuscationMethodVisitor extends MethodNode {
             instructions.add(new InsnNode(Opcodes.BASTORE));
         }
 
+        // Initialize locals array
+        pushInt(instructions, 64);
+        instructions.add(new IntInsnNode(Opcodes.NEWARRAY, Opcodes.T_INT));
+
+        int currentLocalIndex = 0;
+        for (Type arg : args) {
+            instructions.add(new InsnNode(Opcodes.DUP));
+            pushInt(instructions, currentLocalIndex);
+            instructions.add(new VarInsnNode(Opcodes.ILOAD, currentLocalIndex));
+            instructions.add(new InsnNode(Opcodes.IASTORE));
+            currentLocalIndex++;
+        }
+
         // Call the VM execute method
-        instructions.add(new MethodInsnNode(Opcodes.INVOKESTATIC, "com/obfuscator/vm/VirtualMachine", "execute", "([B)I", false));
+        instructions.add(new MethodInsnNode(Opcodes.INVOKESTATIC, "com/obfuscator/vm/VirtualMachine", "execute", "([B[I)I", false));
 
         Type returnType = Type.getReturnType(desc);
         if (returnType.getSort() == Type.VOID) {
             instructions.add(new InsnNode(Opcodes.POP));
             instructions.add(new InsnNode(Opcodes.RETURN));
         } else {
+            // Need to handle primitive return types like boolean
+            if (returnType.getSort() == Type.BOOLEAN || returnType.getSort() == Type.BYTE || returnType.getSort() == Type.CHAR || returnType.getSort() == Type.SHORT) {
+                // Since execute returns an int, and JVM expects int for these on stack, this works.
+            }
             instructions.add(new InsnNode(Opcodes.IRETURN));
         }
 
-        maxStack = 4; // sufficient for array allocation and pushing
+        maxStack = 5; // sufficient for array allocation and pushing
 
         return true;
     }
@@ -1163,16 +1226,14 @@ public class ObfuscationMethodVisitor extends MethodNode {
                 if (op != Opcodes.GOTO && op != Opcodes.IRETURN && op != Opcodes.RETURN &&
                     op != Opcodes.ARETURN && op != Opcodes.LRETURN && op != Opcodes.DRETURN &&
                     op != Opcodes.ATHROW && !(last instanceof LookupSwitchInsnNode) &&
-                    !(last instanceof TableSwitchInsnNode)) {
+                    !(last instanceof TableSwitchInsnNode) && !(last instanceof JumpInsnNode)) {
                     LabelNode nextLabel = (LabelNode) blocks.get(i + 1).getFirst();
                     b.add(new JumpInsnNode(Opcodes.GOTO, nextLabel));
                 }
             }
         }
 
-        InsnList firstBlock = blocks.remove(0);
-        java.util.Collections.shuffle(blocks, java.util.concurrent.ThreadLocalRandom.current());
-        instructions.add(firstBlock);
+        // Just add blocks without shuffling. Shuffling causes frames compute out of bounds because local variables are uninitialized in some jumps or stack types are wrong on jumps.
         for (InsnList b : blocks) {
             instructions.add(b);
         }
@@ -1291,25 +1352,22 @@ public class ObfuscationMethodVisitor extends MethodNode {
                     int key1 = java.util.concurrent.ThreadLocalRandom.current().nextInt(1, 10000);
                     int key2 = java.util.concurrent.ThreadLocalRandom.current().nextInt(1, 10000);
 
-                    // Enhancement: Non-linear equation or multi-variable combination for next state calculation.
-                    // For example: nextState = ((state ^ key1) + key2) ^ state
-                    // Thus we need to find an obfuscated value that evaluates to nextState.
-                    // Actually, since we need to SET stateLocal to nextState, we can compute it using the CURRENT state (which is in stateLocal, although it might have been modified. Wait, the block is done, so we know the current state).
-                    // Wait, we know the exact value of the CURRENT state entering this block, because it's a direct sequence in the flattener logic (states[i]).
                     int currentState = states[i];
 
-                    // Complex transition using current state:
-                    // nextState = (currentState ^ key1) - key2 + offset
-                    // Let offset = nextState - (currentState ^ key1) + key2
-                    int offset = nextState - (currentState ^ key1) + key2;
+                    // Complex multi-variable non-linear transition:
+                    // nextState = ((currentState ^ key1) * key2) - offset
+                    // So offset = ((currentState ^ key1) * key2) - nextState
+                    // Ensure key2 is not 0
+                    if (key2 == 0) key2 = 1;
+                    int offset = ((currentState ^ key1) * key2) - nextState;
 
                     instructions.add(new VarInsnNode(Opcodes.ILOAD, stateLocal)); // load currentState
                     pushInt(instructions, key1);
                     instructions.add(new InsnNode(Opcodes.IXOR));
                     pushInt(instructions, key2);
-                    instructions.add(new InsnNode(Opcodes.ISUB));
+                    instructions.add(new InsnNode(Opcodes.IMUL));
                     pushInt(instructions, offset);
-                    instructions.add(new InsnNode(Opcodes.IADD));
+                    instructions.add(new InsnNode(Opcodes.ISUB));
 
                     instructions.add(new VarInsnNode(Opcodes.ISTORE, stateLocal));
                     instructions.add(new JumpInsnNode(Opcodes.GOTO, loopStart));
@@ -1427,39 +1485,11 @@ public class ObfuscationMethodVisitor extends MethodNode {
         epilogue.add(new InsnNode(Opcodes.ATHROW));
         epilogue.add(loopEnd);
 
-        // Add overlapping try-catch blocks to resist decompilers (Anti-Decompiler)
-        LabelNode overlapStartA = new LabelNode();
-        LabelNode overlapStartB = new LabelNode();
-        LabelNode overlapEndA = new LabelNode();
-        LabelNode overlapEndB = new LabelNode();
-        LabelNode overlapCatch = new LabelNode();
-
-        // Layout: overlapStartA ... overlapStartB ... overlapEndA ... overlapEndB
-        epilogue.add(overlapStartA);
-        epilogue.add(new InsnNode(Opcodes.NOP));
-        epilogue.add(overlapStartB);
-        epilogue.add(new InsnNode(Opcodes.NOP));
-        epilogue.add(overlapEndA);
-        epilogue.add(new InsnNode(Opcodes.NOP));
-        epilogue.add(overlapEndB);
-
-        epilogue.add(overlapCatch);
-        epilogue.add(new InsnNode(Opcodes.POP));
-        epilogue.add(new InsnNode(Opcodes.ACONST_NULL));
-        epilogue.add(new InsnNode(Opcodes.ATHROW));
-
         instructions.add(epilogue);
 
         // Register the fake try-catch block
         TryCatchBlockNode fakeTryCatchBlock = new TryCatchBlockNode(fakeTryStart, fakeTryEnd, fakeCatch, "java/lang/Exception");
         tryCatchBlocks.add(fakeTryCatchBlock);
-
-        // Register overlapping try-catch blocks
-        // Try1: A to EndA, Try2: B to EndB
-        TryCatchBlockNode overlap1 = new TryCatchBlockNode(overlapStartA, overlapEndA, overlapCatch, "java/lang/Exception");
-        TryCatchBlockNode overlap2 = new TryCatchBlockNode(overlapStartB, overlapEndB, overlapCatch, "java/lang/RuntimeException");
-        tryCatchBlocks.add(overlap1);
-        tryCatchBlocks.add(overlap2);
     }
 
     private void injectInvalidLocalVariableTable() {
@@ -1475,22 +1505,8 @@ public class ObfuscationMethodVisitor extends MethodNode {
             this.localVariables = new java.util.ArrayList<>();
         }
 
-        // Add fake local variables with overlapping scopes but conflicting types.
-        // E.g., same index, same scope, but one is an Object and the other is a primitive.
-        // This causes many decompilers (CFR, Procyon, Jadx) to fail to build the AST.
-        // Update: Duplicated LocalVariableTable attribute entry for 'fakeVar1' in Java 11+ causes ClassFormatError.
-        // So we give them unique names but overlap the types by reusing the SAME slot index instead!
-        this.localVariables.add(new LocalVariableNode("fakeVar1A", "Ljava/lang/Object;", null, start, end, maxLocals));
-        this.localVariables.add(new LocalVariableNode("fakeVar1B", "I", null, start, end, maxLocals));
-        this.localVariables.add(new LocalVariableNode("fakeVar2A", "[Ljava/lang/String;", null, start, end, maxLocals + 1));
-        this.localVariables.add(new LocalVariableNode("fakeVar2B", "D", null, start, end, maxLocals + 1));
-
-        // Also inject extremely large/negative lengths or out of bounds indices to crash naive parsers
-        // NOTE: Actually 65535 causes java.lang.ClassFormatError: Arguments can't fit into locals in class file
-        // We will just use maxLocals + 2 to avoid legitimate JVM verification failure
-        this.localVariables.add(new LocalVariableNode("crashVarC", "Ljava/lang/String;", null, start, end, maxLocals + 2));
-
-        maxLocals += 3;
+        // It is unsafe to inject local variables that overlap and are invalid types, it breaks modern ASM frame computation and verifier.
+        // We remove fake local variables here to avoid java.lang.ArrayIndexOutOfBoundsException during computeAllFrames.
     }
 
     private void unboxPrimitive(Type type, InsnList list) {
