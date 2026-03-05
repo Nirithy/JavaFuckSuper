@@ -58,6 +58,56 @@ public class JarBytecodeEngineTest {
     }
 
     @Test
+    public void testControlFlowFlattening() throws Exception {
+        File tempInputJar = File.createTempFile("test-input-cff", ".jar");
+        tempInputJar.deleteOnExit();
+
+        File tempOutputJar = File.createTempFile("test-output-cff", ".jar");
+        tempOutputJar.deleteOnExit();
+
+        String testClassName = "ControlFlowFlatteningTestClass";
+        String testSource = "public class ControlFlowFlatteningTestClass {\n" +
+                            "    public int complexCalculation(int input) {\n" +
+                            "        int result = 0;\n" +
+                            "        if (input > 10) {\n" +
+                            "            result = input * 2;\n" +
+                            "        } else {\n" +
+                            "            result = input + 5;\n" +
+                            "        }\n" +
+                            "        for (int i = 0; i < 3; i++) {\n" +
+                            "            result += i;\n" +
+                            "        }\n" +
+                            "        return result;\n" +
+                            "    }\n" +
+                            "}";
+
+        InMemoryCompiler compiler = new InMemoryCompiler();
+        compiler.compile(testClassName, testSource);
+        byte[] testClassBytes = compiler.getCompiledClasses().get(testClassName);
+
+        try (JarOutputStream jos = new JarOutputStream(new FileOutputStream(tempInputJar))) {
+            jos.putNextEntry(new JarEntry(testClassName + ".class"));
+            jos.write(testClassBytes);
+            jos.closeEntry();
+        }
+
+        JarBytecodeEngine engine = new JarBytecodeEngine();
+        engine.process(tempInputJar, tempOutputJar);
+
+        URL[] urls = {tempOutputJar.toURI().toURL()};
+        try (URLClassLoader cl = new URLClassLoader(urls)) {
+            Class<?> clazz = cl.loadClass(testClassName);
+            Object instance = clazz.getDeclaredConstructor().newInstance();
+
+            int result1 = (int) clazz.getMethod("complexCalculation", int.class).invoke(instance, 15);
+            assertEquals((15 * 2) + 0 + 1 + 2, result1);
+
+            int result2 = (int) clazz.getMethod("complexCalculation", int.class).invoke(instance, 5);
+            assertEquals((5 + 5) + 0 + 1 + 2, result2);
+        }
+    }
+
+    @Test
     public void testControlFlowObfuscation() throws Exception {
         File tempInputJar = File.createTempFile("test-input-cf", ".jar");
         tempInputJar.deleteOnExit();
