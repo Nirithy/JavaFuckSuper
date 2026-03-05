@@ -281,6 +281,10 @@ public class DexBytecodeEngineTest {
             zos.putNextEntry(new java.util.zip.ZipEntry("assets/config.txt"));
             zos.write("dummy config data".getBytes());
             zos.closeEntry();
+
+            zos.putNextEntry(new java.util.zip.ZipEntry("META-INF/mock_signature"));
+            zos.write("mock signature".getBytes());
+            zos.closeEntry();
         }
 
         File tempOutputApk = File.createTempFile("test-output-apk", ".apk");
@@ -297,10 +301,15 @@ public class DexBytecodeEngineTest {
         boolean foundDex = false;
         boolean foundConfig = false;
         boolean hasConstString = false;
+        boolean foundMetaInf = false;
 
         try (java.util.zip.ZipInputStream zis = new java.util.zip.ZipInputStream(new java.io.FileInputStream(tempOutputApk))) {
             java.util.zip.ZipEntry entry;
             while ((entry = zis.getNextEntry()) != null) {
+                if (entry.getName().startsWith("META-INF/")) {
+                    foundMetaInf = true;
+                }
+
                 if (entry.getName().endsWith(".dex")) {
                     foundDex = true;
                     // Read dex bytes to verify obfuscation
@@ -339,6 +348,7 @@ public class DexBytecodeEngineTest {
         assertTrue(foundDex, "Output APK should contain .dex file(s)");
         assertTrue(foundConfig, "Output APK should retain original non-dex resources");
         assertFalse(hasConstString, "The string literal must be obfuscated inside the APK's dex file");
+        assertFalse(foundMetaInf, "Output APK should not contain any files from the META-INF directory (old signatures)");
     }
 
     @Test

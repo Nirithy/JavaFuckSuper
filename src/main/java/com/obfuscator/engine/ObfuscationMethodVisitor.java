@@ -611,11 +611,39 @@ public class ObfuscationMethodVisitor extends MethodNode {
         epilogue.add(new InsnNode(Opcodes.ATHROW));
         epilogue.add(loopEnd);
 
+        // Add overlapping try-catch blocks to resist decompilers (Anti-Decompiler)
+        LabelNode overlapStartA = new LabelNode();
+        LabelNode overlapStartB = new LabelNode();
+        LabelNode overlapEndA = new LabelNode();
+        LabelNode overlapEndB = new LabelNode();
+        LabelNode overlapCatch = new LabelNode();
+
+        // Layout: overlapStartA ... overlapStartB ... overlapEndA ... overlapEndB
+        epilogue.add(overlapStartA);
+        epilogue.add(new InsnNode(Opcodes.NOP));
+        epilogue.add(overlapStartB);
+        epilogue.add(new InsnNode(Opcodes.NOP));
+        epilogue.add(overlapEndA);
+        epilogue.add(new InsnNode(Opcodes.NOP));
+        epilogue.add(overlapEndB);
+
+        epilogue.add(overlapCatch);
+        epilogue.add(new InsnNode(Opcodes.POP));
+        epilogue.add(new InsnNode(Opcodes.ACONST_NULL));
+        epilogue.add(new InsnNode(Opcodes.ATHROW));
+
         instructions.add(epilogue);
 
         // Register the fake try-catch block
         TryCatchBlockNode fakeTryCatchBlock = new TryCatchBlockNode(fakeTryStart, fakeTryEnd, fakeCatch, "java/lang/Exception");
         tryCatchBlocks.add(fakeTryCatchBlock);
+
+        // Register overlapping try-catch blocks
+        // Try1: A to EndA, Try2: B to EndB
+        TryCatchBlockNode overlap1 = new TryCatchBlockNode(overlapStartA, overlapEndA, overlapCatch, "java/lang/Exception");
+        TryCatchBlockNode overlap2 = new TryCatchBlockNode(overlapStartB, overlapEndB, overlapCatch, "java/lang/RuntimeException");
+        tryCatchBlocks.add(overlap1);
+        tryCatchBlocks.add(overlap2);
     }
 
     private void unboxPrimitive(Type type, InsnList list) {
