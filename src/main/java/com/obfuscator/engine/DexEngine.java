@@ -142,6 +142,11 @@ public class DexEngine implements ObfuscationEngine {
             while ((entry = zis.getNextEntry()) != null) {
                 String entryName = entry.getName();
 
+                if (entryName.startsWith("META-INF/")) {
+                    System.out.println("Skipping signature/META-INF file: " + entryName);
+                    continue;
+                }
+
                 if (entryName.endsWith(".dex")) {
                     System.out.println("Processing DEX entry: " + entryName);
 
