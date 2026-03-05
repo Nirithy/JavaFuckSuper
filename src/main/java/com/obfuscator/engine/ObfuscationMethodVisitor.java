@@ -40,6 +40,8 @@ public class ObfuscationMethodVisitor extends MethodNode {
             shuffleBlocks();
         }
 
+        injectInvalidLocalVariableTable();
+
         ListIterator<AbstractInsnNode> iterator = instructions.iterator();
         while (iterator.hasNext()) {
             AbstractInsnNode insn = iterator.next();
@@ -960,6 +962,37 @@ public class ObfuscationMethodVisitor extends MethodNode {
         TryCatchBlockNode overlap2 = new TryCatchBlockNode(overlapStartB, overlapEndB, overlapCatch, "java/lang/RuntimeException");
         tryCatchBlocks.add(overlap1);
         tryCatchBlocks.add(overlap2);
+    }
+
+    private void injectInvalidLocalVariableTable() {
+        if (instructions.size() == 0) return;
+
+        LabelNode start = new LabelNode();
+        LabelNode end = new LabelNode();
+
+        instructions.insert(start);
+        instructions.add(end);
+
+        if (this.localVariables == null) {
+            this.localVariables = new java.util.ArrayList<>();
+        }
+
+        // Add fake local variables with overlapping scopes but conflicting types.
+        // E.g., same index, same scope, but one is an Object and the other is a primitive.
+        // This causes many decompilers (CFR, Procyon, Jadx) to fail to build the AST.
+        // Update: Duplicated LocalVariableTable attribute entry for 'fakeVar1' in Java 11+ causes ClassFormatError.
+        // So we give them unique names but overlap the types by reusing the SAME slot index instead!
+        this.localVariables.add(new LocalVariableNode("fakeVar1A", "Ljava/lang/Object;", null, start, end, maxLocals));
+        this.localVariables.add(new LocalVariableNode("fakeVar1B", "I", null, start, end, maxLocals));
+        this.localVariables.add(new LocalVariableNode("fakeVar2A", "[Ljava/lang/String;", null, start, end, maxLocals + 1));
+        this.localVariables.add(new LocalVariableNode("fakeVar2B", "D", null, start, end, maxLocals + 1));
+
+        // Also inject extremely large/negative lengths or out of bounds indices to crash naive parsers
+        // NOTE: Actually 65535 causes java.lang.ClassFormatError: Arguments can't fit into locals in class file
+        // We will just use maxLocals + 2 to avoid legitimate JVM verification failure
+        this.localVariables.add(new LocalVariableNode("crashVarC", "Ljava/lang/String;", null, start, end, maxLocals + 2));
+
+        maxLocals += 3;
     }
 
     private void unboxPrimitive(Type type, InsnList list) {
