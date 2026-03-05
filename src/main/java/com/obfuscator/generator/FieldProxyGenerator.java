@@ -19,20 +19,60 @@ public class FieldProxyGenerator implements ProxyGenerator {
 
         FieldData fieldData = (FieldData) data;
 
+        boolean useMethodHandlesForGet = Math.random() > 0.5;
+        boolean useMethodHandlesForSet = Math.random() > 0.5;
+
         StringBuilder sb = new StringBuilder();
         sb.append("public class ").append(className).append(" {\n");
+
+        // GET
         sb.append("    public static Object get(Object target) throws Exception {\n");
         sb.append("        Class<?> clazz = Class.forName(\"").append(fieldData.getClassName()).append("\");\n");
-        sb.append("        java.lang.reflect.Field field = clazz.getDeclaredField(\"").append(fieldData.getFieldName()).append("\");\n");
-        sb.append("        field.setAccessible(true);\n");
-        sb.append("        return field.get(target);\n");
+        if (useMethodHandlesForGet) {
+            sb.append("        try {\n");
+            sb.append("            java.lang.reflect.Field field = clazz.getDeclaredField(\"").append(fieldData.getFieldName()).append("\");\n");
+            sb.append("            field.setAccessible(true);\n");
+            sb.append("            java.lang.invoke.MethodHandles.Lookup lookup = java.lang.invoke.MethodHandles.lookup();\n");
+            sb.append("            java.lang.invoke.MethodHandle mh = lookup.unreflectGetter(field);\n");
+            sb.append("            if (target == null) {\n");
+            sb.append("                return mh.invoke();\n");
+            sb.append("            } else {\n");
+            sb.append("                return mh.invoke(target);\n");
+            sb.append("            }\n");
+            sb.append("        } catch (Throwable t) {\n");
+            sb.append("            if (t instanceof Exception) throw (Exception) t;\n");
+            sb.append("            throw new Exception(t);\n");
+            sb.append("        }\n");
+        } else {
+            sb.append("        java.lang.reflect.Field field = clazz.getDeclaredField(\"").append(fieldData.getFieldName()).append("\");\n");
+            sb.append("        field.setAccessible(true);\n");
+            sb.append("        return field.get(target);\n");
+        }
         sb.append("    }\n\n");
 
+        // SET
         sb.append("    public static void set(Object target, Object value) throws Exception {\n");
         sb.append("        Class<?> clazz = Class.forName(\"").append(fieldData.getClassName()).append("\");\n");
-        sb.append("        java.lang.reflect.Field field = clazz.getDeclaredField(\"").append(fieldData.getFieldName()).append("\");\n");
-        sb.append("        field.setAccessible(true);\n");
-        sb.append("        field.set(target, value);\n");
+        if (useMethodHandlesForSet) {
+            sb.append("        try {\n");
+            sb.append("            java.lang.reflect.Field field = clazz.getDeclaredField(\"").append(fieldData.getFieldName()).append("\");\n");
+            sb.append("            field.setAccessible(true);\n");
+            sb.append("            java.lang.invoke.MethodHandles.Lookup lookup = java.lang.invoke.MethodHandles.lookup();\n");
+            sb.append("            java.lang.invoke.MethodHandle mh = lookup.unreflectSetter(field);\n");
+            sb.append("            if (target == null) {\n");
+            sb.append("                mh.invoke(value);\n");
+            sb.append("            } else {\n");
+            sb.append("                mh.invoke(target, value);\n");
+            sb.append("            }\n");
+            sb.append("        } catch (Throwable t) {\n");
+            sb.append("            if (t instanceof Exception) throw (Exception) t;\n");
+            sb.append("            throw new Exception(t);\n");
+            sb.append("        }\n");
+        } else {
+            sb.append("        java.lang.reflect.Field field = clazz.getDeclaredField(\"").append(fieldData.getFieldName()).append("\");\n");
+            sb.append("        field.setAccessible(true);\n");
+            sb.append("        field.set(target, value);\n");
+        }
         sb.append("    }\n");
         sb.append("}\n");
 

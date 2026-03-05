@@ -16,6 +16,6 @@ public class ClassCreationProxyGeneratorTest {
         assertTrue(result.contains("public class " + dynamicId));
         assertTrue(result.contains("public static Object create(Object[] args) throws Exception"));
         assertTrue(result.contains("Class.forName(\"java.util.ArrayList\")"));
-        assertTrue(result.contains("return c.newInstance(args);"));
+        assertTrue(result.contains("return c.newInstance(args);") || result.contains("return mh.invokeWithArguments(args);"));
     }
 }

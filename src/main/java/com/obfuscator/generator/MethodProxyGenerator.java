@@ -17,6 +17,8 @@ public class MethodProxyGenerator implements ProxyGenerator {
         }
         MethodData methodData = (MethodData) data;
 
+        boolean useMethodHandles = Math.random() > 0.5;
+
         StringBuilder sb = new StringBuilder();
         sb.append("public class ").append(className).append(" {\n");
         sb.append("    public static Object invoke(Object target, Object[] args) throws Exception {\n");
@@ -28,9 +30,26 @@ public class MethodProxyGenerator implements ProxyGenerator {
             sb.append("        paramClasses[").append(i).append("] = ").append(getClassForType(paramTypes[i])).append(";\n");
         }
 
-        sb.append("        java.lang.reflect.Method method = clazz.getDeclaredMethod(\"").append(methodData.getMethodName()).append("\", paramClasses);\n");
-        sb.append("        method.setAccessible(true);\n");
-        sb.append("        return method.invoke(target, args);\n");
+        if (useMethodHandles) {
+            sb.append("        try {\n");
+            sb.append("            java.lang.reflect.Method method = clazz.getDeclaredMethod(\"").append(methodData.getMethodName()).append("\", paramClasses);\n");
+            sb.append("            method.setAccessible(true);\n");
+            sb.append("            java.lang.invoke.MethodHandles.Lookup lookup = java.lang.invoke.MethodHandles.lookup();\n");
+            sb.append("            java.lang.invoke.MethodHandle mh = lookup.unreflect(method);\n");
+            sb.append("            if (target != null) {\n");
+            sb.append("                mh = mh.bindTo(target);\n");
+            sb.append("            }\n");
+            sb.append("            return mh.invokeWithArguments(args);\n");
+            sb.append("        } catch (Throwable t) {\n");
+            sb.append("            if (t instanceof Exception) throw (Exception) t;\n");
+            sb.append("            throw new Exception(t);\n");
+            sb.append("        }\n");
+        } else {
+            sb.append("        java.lang.reflect.Method method = clazz.getDeclaredMethod(\"").append(methodData.getMethodName()).append("\", paramClasses);\n");
+            sb.append("        method.setAccessible(true);\n");
+            sb.append("        return method.invoke(target, args);\n");
+        }
+
         sb.append("    }\n");
         sb.append("}\n");
 

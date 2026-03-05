@@ -14,6 +14,8 @@ public class ClassCreationProxyGenerator implements ProxyGenerator {
         String className = id;
         String targetClass = (String) data; // e.g. "java.util.ArrayList"
 
+        boolean useMethodHandles = Math.random() > 0.5;
+
         StringBuilder sb = new StringBuilder();
         sb.append("public class ").append(className).append(" {\n");
         sb.append("    public static Object create(Object[] args) throws Exception {\n");
@@ -41,8 +43,20 @@ public class ClassCreationProxyGenerator implements ProxyGenerator {
         sb.append("                    }\n");
         sb.append("                }\n");
         sb.append("                if (match) {\n");
-        sb.append("                    c.setAccessible(true);\n");
-        sb.append("                    return c.newInstance(args);\n");
+        if (useMethodHandles) {
+            sb.append("                    try {\n");
+            sb.append("                        c.setAccessible(true);\n");
+            sb.append("                        java.lang.invoke.MethodHandles.Lookup lookup = java.lang.invoke.MethodHandles.lookup();\n");
+            sb.append("                        java.lang.invoke.MethodHandle mh = lookup.unreflectConstructor(c);\n");
+            sb.append("                        return mh.invokeWithArguments(args);\n");
+            sb.append("                    } catch (Throwable t) {\n");
+            sb.append("                        if (t instanceof Exception) throw (Exception) t;\n");
+            sb.append("                        throw new Exception(t);\n");
+            sb.append("                    }\n");
+        } else {
+            sb.append("                    c.setAccessible(true);\n");
+            sb.append("                    return c.newInstance(args);\n");
+        }
         sb.append("                }\n");
         sb.append("            }\n");
         sb.append("        }\n");
