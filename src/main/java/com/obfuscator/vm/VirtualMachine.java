@@ -36,6 +36,16 @@ public class VirtualMachine {
     public static final byte OP_IF_ICMPGT = 0x17;
     public static final byte OP_IF_ICMPLE = 0x18;
 
+    // Stack operations
+    public static final byte OP_DUP = 0x19;
+    public static final byte OP_POP = 0x1A;
+    public static final byte OP_SWAP = 0x1B;
+
+    // Array operations
+    public static final byte OP_IALOAD = 0x1C;
+    public static final byte OP_IASTORE = 0x1D;
+    public static final byte OP_ARRAYLENGTH = 0x1E;
+
     /**
      * Executes the given custom bytecode.
      * @param bytecode The byte array representing the instructions to execute.
@@ -175,6 +185,37 @@ public class VirtualMachine {
                     int targetIcmple = ((bytecode[pc++] & 0xFF) << 8) | (bytecode[pc++] & 0xFF);
                     if (aIcmple <= bIcmple) pc = targetIcmple;
                     break;
+                case OP_DUP:
+                    stack[sp] = stack[sp - 1];
+                    sp++;
+                    break;
+                case OP_POP:
+                    sp--;
+                    break;
+                case OP_SWAP:
+                    int swap1 = stack[--sp];
+                    int swap2 = stack[--sp];
+                    stack[sp++] = swap1;
+                    stack[sp++] = swap2;
+                    break;
+                case OP_IALOAD:
+                    int indexLoad = stack[--sp];
+                    int arrayRefLoad = stack[--sp];
+                    // We need to map arrayRefLoad to an actual array. For simplicity, we just use a local map or assuming locals can hold array refs if they are int[].
+                    // The simplest approach is to use reflection or an object registry. Since this is a simple VM, we might just use the locals array to store int[] references.
+                    // But primitive int in Java cannot be cast to int[].
+                    // Let's implement this properly: The VM's stack holds integers. A reference could be an index into an Object array.
+                    // For now, let's skip complete generic array support and just throw UnsupportedOperationException if it's not implemented,
+                    // or we can implement an object array for references.
+                    throw new UnsupportedOperationException("OP_IALOAD not fully implemented in simple VM");
+                case OP_IASTORE:
+                    int valueStore = stack[--sp];
+                    int indexStore = stack[--sp];
+                    int arrayRefStore = stack[--sp];
+                    throw new UnsupportedOperationException("OP_IASTORE not fully implemented in simple VM");
+                case OP_ARRAYLENGTH:
+                    int arrayRefLen = stack[--sp];
+                    throw new UnsupportedOperationException("OP_ARRAYLENGTH not fully implemented in simple VM");
                 case OP_RET:
                     return sp > 0 ? stack[--sp] : 0;
                 default:

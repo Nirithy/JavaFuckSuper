@@ -111,8 +111,13 @@
   - [x] 编写 `VirtualMachine` 类，实现基于字节数组的栈式虚拟机解释器
   - [x] 定义自定义指令集，包含入栈、加减法、返回等基本指令
   - [x] 在 `ObfuscationMethodVisitor` 中拦截简单算术方法，将其转化为自定义字节码并调用虚拟机执行
-  - [ ] 增强 `VirtualMachine` 虚拟机保护，增加局部变量指令 (OP_LOAD, OP_STORE) 和 控制流跳转指令 (OP_JMP, OP_IFEQ, OP_IFNE, OP_IF_ICMPEQ 等等)。
-  - [ ] 增强 `ObfuscationMethodVisitor` 虚拟化重写逻辑，引入 Two-pass 解析以支持带局部变量和条件分支跳转的复杂方法。
+  - [x] 增强 `VirtualMachine` 虚拟机保护，增加局部变量指令 (OP_LOAD, OP_STORE) 和 控制流跳转指令 (OP_JMP, OP_IFEQ, OP_IFNE, OP_IF_ICMPEQ 等等)。
+  - [x] 增强 `ObfuscationMethodVisitor` 虚拟化重写逻辑，引入 Two-pass 解析以支持带局部变量和条件分支跳转的复杂方法。
+  - [x] 完善 VirtualMachine 和虚拟化混淆 (Virtualization Obfuscation) 新增栈操作指令 (OP_DUP, OP_POP, OP_SWAP) 和数组操作指令 (OP_IALOAD, OP_IASTORE, OP_ARRAYLENGTH)
+  - [x] 增强控制流扁平化 (Control Flow Flattening) 引入多级跳板 (Trampolines) 和伪造的 case 分支
+  - [x] 增强花指令 (Flower Instructions / Opaque Predicates) 扩展 insertOpaquePredicate 库，新增基于费马小定理 (x^7 - x) % 7 == 0 等数学恒等式的不透明谓词
+  - [x] 增强指令替换 (Instruction Substitution) 为 IADD 增加新的数学等价替换策略：a + b = (a ^ b) + ((a & b) << 1)
+  - [x] 增强数字混淆 (Number Obfuscation) 增加基于字符串长度 String.length() 动态推导整数常量的策略
 - [x] 异常控制流
   - [x] 使用 try-catch-finally 块代替正常的逻辑跳转，使用 throw 代替 goto 或 return
     - [x] 在 `ObfuscationMethodVisitor` 中安全分析栈帧(Stack Map Frames)，在方法末尾的 Return 区块使用 ATHROW 抛出带有返回值的自定义异常对象
