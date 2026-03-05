@@ -38,14 +38,17 @@
   - [x] 实现 MethodVisitor 拦截 FIELD 读写指令替换为代理调用
   - [x] 实现 MethodVisitor 拦截 控制流/比较 指令替换为代理调用 (完善针对各类跳转指令如 IFEQ, IFNULL, IF_ICMPEQ 等的处理)
 - [ ] 实现对 .dex 文件的解析与混淆重写 (Dexlib2/Smali)
-  - [ ] 评估并引入 smali/dexlib2 依赖
-  - [ ] 使用 Dexlib2 实现基础的 DEX 文件读取和写入骨架 (DexBytecodeEngine)
-  - [ ] 提取并重写 Dex 文件结构中的字符串数据段 (拦截 const-string 等指令)
+  - [x] 评估并引入 smali/dexlib2 依赖
+  - [x] 创建 DexCompiler 接口抽象 .class 到 .dex 的编译过程
+  - [x] 在 DexEngine 中使用 dexlib2 加载并重新写入原始 .dex 文件
+  - [x] 遍历 dexlib2 解析出的 Classes 和 Methods 结构
+  - [x] 在 Method 指令中拦截字符串字面量 (如 const-string) 并输出日志
+  - [ ] 提取并重写 Dex 文件结构中的字符串数据段并替换为代理调用
   - [ ] 提取并重写 Dex 文件中的方法调用指令 (拦截 invoke-virtual, invoke-static 等)
   - [ ] 提取并重写 Dex 文件中的字段访问指令 (拦截 iget/iput/sget/sput)
   - [ ] 提取并重写 Dex 文件中的对象实例化指令 (拦截 new-instance)
   - [ ] 提取并重写 Dex 文件中的控制流指令 (拦截 if-eq/if-ne等)
-  - [ ] 将动态生成的 Java 代理类编译为 .class 后再转换为 .dex，并合并到目标 DEX 文件中 (借助 d8/dx 工具类)
+  - [ ] 将动态生成的 Java 代理类使用 d8/dx API 编译为 .dex 格式，并合并到目标 DEX 文件中
   - [ ] 支持多 DEX (Multi-Dex) 文件的处理
   - [ ] 支持 APK 文件的解包、签名和重新打包 (集成 apktool / apksigner / zipalign)
 

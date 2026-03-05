@@ -33,6 +33,7 @@
         </dependency>
 
         <!-- Dexlib2 for Android Dex level manipulation (.dex files) -->
+        <!-- Added/Verified for parsing and rewriting dex files -->
         <dependency>
             <groupId>org.smali</groupId>
             <artifactId>dexlib2</artifactId>
