@@ -45,12 +45,12 @@
   - [x] 在 Method 指令中拦截字符串字面量 (如 const-string) 并输出日志
   - [x] 提取并重写 Dex 文件结构中的字符串数据段并替换为代理调用
   - [x] 提取并重写 Dex 文件中的静态字段访问指令 (拦截 sget/sget-object)
-  - [ ] 提取并重写 Dex 文件中的实例字段访问指令 (拦截 iget/iput/sput)
+  - [x] 提取并重写 Dex 文件中的实例字段访问指令 (拦截 iget/iput/sput)
     - [x] 实现 IGET 和 IGET_OBJECT 指令拦截与代理调用生成
-    - [ ] 研发能够正确拦截基本类型写入 (IPUT/SPUT) 并进行精确类型推导而不触发 Dalvik VerifyError 的新方案
-  - [ ] 提取并重写 Dex 文件中的方法调用指令 (拦截 invoke-virtual, invoke-static 等) 需解决参数装箱与堆栈问题
-    - [ ] 设计 Dex 方法调用栈帧分析器，以准确计算寄存器偏移和装箱机制
-    - [ ] 编写 Dex MethodProxyGenerator，专门生成兼容 Dex 语法的反射调用桩代码
+    - [x] 研发能够正确拦截基本类型写入 (IPUT/SPUT) 并进行精确类型推导而不触发 Dalvik VerifyError 的新方案
+  - [x] 提取并重写 Dex 文件中的方法调用指令 (拦截 invoke-virtual, invoke-static 等) 需解决参数装箱与堆栈问题
+    - [x] 设计 Dex 方法调用栈帧分析器，以准确计算寄存器偏移和装箱机制
+    - [x] 编写 Dex MethodProxyGenerator，专门生成兼容 Dex 语法的反射调用桩代码
   - [ ] 提取并重写 Dex 文件中的对象实例化指令 (拦截 new-instance 和 invoke-direct <init>) 需处理指令组合
     - [ ] 通过代码流分析(Data Flow Analysis)查找 `new-instance` 和对应 `<init>` 调用之间的寄存器关联
   - [ ] 提取并重写 Dex 文件中的控制流指令 (拦截 if-eq/if-ne等) 需处理跳转偏移修正

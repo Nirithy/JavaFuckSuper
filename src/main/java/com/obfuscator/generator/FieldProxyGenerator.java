@@ -52,7 +52,7 @@ public class FieldProxyGenerator implements ProxyGenerator {
         }
         sb.append("    }\n\n");
 
-        // SET
+        // SET (Object)
         sb.append("    public static void set(Object target, Object value) throws Exception {\n");
         sb.append(JunkCodeGenerator.generate());
         sb.append("        Class<?> clazz = Class.forName(\"").append(fieldData.getClassName()).append("\");\n");
@@ -77,6 +77,45 @@ public class FieldProxyGenerator implements ProxyGenerator {
             sb.append("        field.set(target, value);\n");
         }
         sb.append("    }\n");
+
+        // SET Primitive specialized methods to avoid VerifyError on Dex unboxing
+        String[] primitives = {"boolean", "byte", "char", "short", "int", "float", "long", "double"};
+        String[] capitalizedPrimitives = {"Boolean", "Byte", "Char", "Short", "Int", "Float", "Long", "Double"};
+
+        for (int i = 0; i < primitives.length; i++) {
+            String prim = primitives[i];
+            String capPrim = capitalizedPrimitives[i];
+
+            sb.append("\n    public static void set").append(capPrim).append("(Object target, ").append(prim).append(" value) throws Exception {\n");
+            sb.append("        Class<?> clazz = Class.forName(\"").append(fieldData.getClassName()).append("\");\n");
+            if (useMethodHandlesForSet) {
+                sb.append("        try {\n");
+                sb.append("            java.lang.reflect.Field field = clazz.getDeclaredField(\"").append(fieldData.getFieldName()).append("\");\n");
+                sb.append("            field.setAccessible(true);\n");
+                sb.append("            java.lang.invoke.MethodHandles.Lookup lookup = java.lang.invoke.MethodHandles.lookup();\n");
+                sb.append("            java.lang.invoke.MethodHandle mh = lookup.unreflectSetter(field);\n");
+                sb.append("            if (target == null) {\n");
+                sb.append("                mh.invoke(value);\n");
+                sb.append("            } else {\n");
+                sb.append("                mh.invoke(target, value);\n");
+                sb.append("            }\n");
+                sb.append("        } catch (Throwable t) {\n");
+                sb.append("            if (t instanceof Exception) throw (Exception) t;\n");
+                sb.append("            throw new Exception(t);\n");
+                sb.append("        }\n");
+            } else {
+                sb.append("        java.lang.reflect.Field field = clazz.getDeclaredField(\"").append(fieldData.getFieldName()).append("\");\n");
+                sb.append("        field.setAccessible(true);\n");
+                if (capPrim.equals("Char")) {
+                    sb.append("        field.setChar(target, value);\n");
+                } else if (capPrim.equals("Int")) {
+                    sb.append("        field.setInt(target, value);\n");
+                } else {
+                    sb.append("        field.set").append(capPrim).append("(target, value);\n");
+                }
+            }
+            sb.append("    }\n");
+        }
         sb.append("}\n");
 
         System.out.println("Generating Field Access Proxy: " + className + " for field: " + fieldData.getFieldName());
