@@ -217,7 +217,7 @@ public class ObfuscationMethodVisitor extends MethodNode {
 
             if (insn.getOpcode() == Opcodes.IADD) {
                 InsnList subList = new InsnList();
-                int choice = java.util.concurrent.ThreadLocalRandom.current().nextInt(2);
+                int choice = java.util.concurrent.ThreadLocalRandom.current().nextInt(3);
                 if (choice == 0) {
                     // Instruction Substitution: a + b -> a - (~b) - 1
                     subList.add(new InsnNode(Opcodes.ICONST_M1));
@@ -225,7 +225,7 @@ public class ObfuscationMethodVisitor extends MethodNode {
                     subList.add(new InsnNode(Opcodes.ISUB)); // a - (~b)
                     subList.add(new InsnNode(Opcodes.ICONST_1));
                     subList.add(new InsnNode(Opcodes.ISUB)); // a - (~b) - 1
-                } else {
+                } else if (choice == 1) {
                     // Instruction Substitution: a + b -> (a ^ b) + ((a & b) << 1)
                     // Stack: a, b
                     subList.add(new InsnNode(Opcodes.DUP2));
@@ -242,6 +242,20 @@ public class ObfuscationMethodVisitor extends MethodNode {
                     // Stack: (a ^ b), ((a & b) << 1)
                     subList.add(new InsnNode(Opcodes.IADD));
                     // Stack: (a ^ b) + ((a & b) << 1)
+                } else {
+                    // Instruction Substitution: a + b -> (a | b) + (a & b)
+                    // Stack: a, b
+                    subList.add(new InsnNode(Opcodes.DUP2));
+                    // Stack: a, b, a, b
+                    subList.add(new InsnNode(Opcodes.IOR));
+                    // Stack: a, b, (a | b)
+                    subList.add(new InsnNode(Opcodes.DUP_X2));
+                    subList.add(new InsnNode(Opcodes.POP));
+                    // Stack: (a | b), a, b
+                    subList.add(new InsnNode(Opcodes.IAND));
+                    // Stack: (a | b), (a & b)
+                    subList.add(new InsnNode(Opcodes.IADD));
+                    // Stack: (a | b) + (a & b)
                 }
 
                 iterator.remove();
@@ -254,12 +268,22 @@ public class ObfuscationMethodVisitor extends MethodNode {
                 }
             } else if (insn.getOpcode() == Opcodes.ISUB) {
                 // Instruction Substitution: a - b -> a + (~b) + 1
+                int choice = java.util.concurrent.ThreadLocalRandom.current().nextInt(2);
                 InsnList subList = new InsnList();
-                subList.add(new InsnNode(Opcodes.ICONST_M1));
-                subList.add(new InsnNode(Opcodes.IXOR)); // ~b
-                subList.add(new InsnNode(Opcodes.IADD)); // a + (~b)
-                subList.add(new InsnNode(Opcodes.ICONST_1));
-                subList.add(new InsnNode(Opcodes.IADD)); // a + (~b) + 1
+                if (choice == 0) {
+                    subList.add(new InsnNode(Opcodes.ICONST_M1));
+                    subList.add(new InsnNode(Opcodes.IXOR)); // ~b
+                    subList.add(new InsnNode(Opcodes.IADD)); // a + (~b)
+                    subList.add(new InsnNode(Opcodes.ICONST_1));
+                    subList.add(new InsnNode(Opcodes.IADD)); // a + (~b) + 1
+                } else {
+                    // Instruction Substitution: a - b -> (a ^ ~b) + ((a & ~b) << 1) + 1  (Since a - b = a + (~b) + 1)
+                    // This is too complex for stack layout. We can do: a - b = (a ^ b) - (((~a) & b) << 1)
+                    // Let's stick to simple: a - b -> a - (b - 0)
+                    pushInt(subList, 0);
+                    subList.add(new InsnNode(Opcodes.ISUB)); // b - 0 = b
+                    subList.add(new InsnNode(Opcodes.ISUB)); // a - b
+                }
 
                 iterator.remove();
                 AbstractInsnNode nextNode = iterator.hasNext() ? iterator.next() : null;
@@ -892,7 +916,7 @@ public class ObfuscationMethodVisitor extends MethodNode {
 
     private InsnList obfuscateNumber(int val) {
         InsnList numList = new InsnList();
-        int strategy = java.util.concurrent.ThreadLocalRandom.current().nextInt(6);
+        int strategy = java.util.concurrent.ThreadLocalRandom.current().nextInt(8);
 
         if (strategy == 0) {
             // Strategy 0: val ^ key
@@ -965,7 +989,7 @@ public class ObfuscationMethodVisitor extends MethodNode {
             numList.add(new InsnNode(Opcodes.ARRAYLENGTH));
 
             numList.add(new InsnNode(Opcodes.ISUB));
-        } else {
+        } else if (strategy == 6) {
             // Strategy 6: Dynamic calculation using String.length()
             // val = (val - length) + String.length()
             int length = java.util.concurrent.ThreadLocalRandom.current().nextInt(5, 20);
@@ -981,6 +1005,17 @@ public class ObfuscationMethodVisitor extends MethodNode {
             numList.add(new LdcInsnNode(randomString));
             numList.add(new MethodInsnNode(Opcodes.INVOKEVIRTUAL, "java/lang/String", "length", "()I", false));
             numList.add(new InsnNode(Opcodes.IADD));
+        } else {
+            // Strategy 7: Math.abs logic
+            // val = val + Math.abs(key) - key (where key > 0, so Math.abs(key) - key = 0)
+            int key = java.util.concurrent.ThreadLocalRandom.current().nextInt(1, 1000);
+
+            pushInt(numList, val);
+            pushInt(numList, key);
+            numList.add(new MethodInsnNode(Opcodes.INVOKESTATIC, "java/lang/Math", "abs", "(I)I", false));
+            numList.add(new InsnNode(Opcodes.IADD));
+            pushInt(numList, key);
+            numList.add(new InsnNode(Opcodes.ISUB));
         }
 
         return numList;

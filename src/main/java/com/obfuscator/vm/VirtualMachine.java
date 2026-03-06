@@ -45,6 +45,7 @@ public class VirtualMachine {
     public static final byte OP_IALOAD = 0x1C;
     public static final byte OP_IASTORE = 0x1D;
     public static final byte OP_ARRAYLENGTH = 0x1E;
+    public static final byte OP_NEWARRAY = 0x1F;
 
     /**
      * Executes the given custom bytecode.
@@ -56,6 +57,10 @@ public class VirtualMachine {
         int[] stack = new int[64];
         int sp = 0;
         int pc = 0;
+
+        // Simple heap for array allocation
+        int[][] heap = new int[256][];
+        int nextHeapPtr = 1; // 0 is null
 
         while (pc < bytecode.length) {
             byte opcode = bytecode[pc++];
@@ -198,24 +203,27 @@ public class VirtualMachine {
                     stack[sp++] = swap1;
                     stack[sp++] = swap2;
                     break;
+                case OP_NEWARRAY:
+                    int size = stack[--sp];
+                    int ptr = nextHeapPtr++;
+                    heap[ptr] = new int[size];
+                    stack[sp++] = ptr;
+                    break;
                 case OP_IALOAD:
                     int indexLoad = stack[--sp];
                     int arrayRefLoad = stack[--sp];
-                    // We need to map arrayRefLoad to an actual array. For simplicity, we just use a local map or assuming locals can hold array refs if they are int[].
-                    // The simplest approach is to use reflection or an object registry. Since this is a simple VM, we might just use the locals array to store int[] references.
-                    // But primitive int in Java cannot be cast to int[].
-                    // Let's implement this properly: The VM's stack holds integers. A reference could be an index into an Object array.
-                    // For now, let's skip complete generic array support and just throw UnsupportedOperationException if it's not implemented,
-                    // or we can implement an object array for references.
-                    throw new UnsupportedOperationException("OP_IALOAD not fully implemented in simple VM");
+                    stack[sp++] = heap[arrayRefLoad][indexLoad];
+                    break;
                 case OP_IASTORE:
                     int valueStore = stack[--sp];
                     int indexStore = stack[--sp];
                     int arrayRefStore = stack[--sp];
-                    throw new UnsupportedOperationException("OP_IASTORE not fully implemented in simple VM");
+                    heap[arrayRefStore][indexStore] = valueStore;
+                    break;
                 case OP_ARRAYLENGTH:
                     int arrayRefLen = stack[--sp];
-                    throw new UnsupportedOperationException("OP_ARRAYLENGTH not fully implemented in simple VM");
+                    stack[sp++] = heap[arrayRefLen].length;
+                    break;
                 case OP_RET:
                     return sp > 0 ? stack[--sp] : 0;
                 default:
