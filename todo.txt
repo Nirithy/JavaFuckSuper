@@ -123,19 +123,19 @@
     - [x] 在 `ObfuscationMethodVisitor` 中安全分析栈帧(Stack Map Frames)，在方法末尾的 Return 区块使用 ATHROW 抛出带有返回值的自定义异常对象
   - [x] 植入虚假异常处理逻辑，扰乱控制流分析
     - [x] 伪造冗余的 `ExceptionTable` 并指向无效但合法的代码块
-- [ ] 反调试与反运行环境检测
+- [x] 反调试与反运行环境检测
   - [x] 注入静态防调试逻辑代码 (Anti-Debugging Injector)
     - [x] 编写 AntiDebugGenerator 生成包含 `android.os.Debug.isDebuggerConnected()` 的代理类
     - [x] 在 `JarBytecodeEngine` 及 `DexEngine` 中，寻找入口类 (`main`, `Activity.onCreate` 或 `<clinit>`) 并将反调试桩代码织入其中
-  - [ ] 注入检测代码，识别是否在模拟器、Xposed 环境
-    - [ ] 检测特定的 `ClassLoader` (如 `de.robv.android.xposed.XposedBridge`，`Lcom/saurik/substrate/MS$2;`)
-    - [ ] 检查特定的系统属性特征，如 qemu 硬件指纹 `ro.hardware.qemu`，`ro.product.model` 包含 emulator 字样
-  - [ ] 检测 Root 环境以及 Frida/Xposed 框架 Hook
-    - [ ] 扫描特定的端口 (如 Frida Server 的 27042 端口) 并检测 `su` 二进制文件
-    - [ ] 读取 `/proc/self/maps` 并检测是否映射了可疑的 `.so` (如 `frida-agent.so`)
-  - [ ] 加入自毁机制或应用层重启逻辑响应安全威胁
-    - [ ] 当检测到调试或篡改时，使用 `Runtime.getRuntime().halt(0)` 强杀进程或制造内存溢出
-    - [ ] 设计抛出 `VirtualMachineError` 等难以通过普通 `catch` 捕获的严重错误
+  - [x] 注入检测代码，识别是否在模拟器、Xposed 环境
+    - [x] 检测特定的 `ClassLoader` (如 `de.robv.android.xposed.XposedBridge`，`Lcom/saurik/substrate/MS$2;`)
+    - [x] 检查特定的系统属性特征，如 qemu 硬件指纹 `ro.hardware.qemu`，`ro.product.model` 包含 emulator 字样
+  - [x] 检测 Root 环境以及 Frida/Xposed 框架 Hook
+    - [x] 扫描特定的端口 (如 Frida Server 的 27042 端口) 并检测 `su` 二进制文件
+    - [x] 读取 `/proc/self/maps` 并检测是否映射了可疑的 `.so` (如 `frida-agent.so`)
+  - [x] 加入自毁机制或应用层重启逻辑响应安全威胁
+    - [x] 当检测到调试或篡改时，使用 `Runtime.getRuntime().halt(0)` 强杀进程或制造内存溢出
+    - [x] 设计抛出 `VirtualMachineError` 等难以通过普通 `catch` 捕获的严重错误
 - [ ] 反编译工具抵抗 (Anti-Decompiler)
   - [x] 构造引发 CFR / Procyon / Jadx 等主流反编译工具崩溃的特殊指令序列 (如非法的局部变量表/异常表)
   - [x] 利用 Java 语言规范与 Class 文件规范差异，进行类库漏洞攻击混淆
